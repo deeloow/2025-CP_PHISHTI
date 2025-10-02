@@ -45,6 +45,7 @@ dependencies:
   # Network & HTTP
   http: ^1.1.2
   dio: ^5.4.0
+  connectivity_plus: ^5.0.2
   
   # Utilities
   crypto: ^3.0.3

@@ -1,0 +1,110 @@
+{
+  "models": {
+    "distilbert": {
+      "filename": "distilbert_sms_classifier.tflite",
+      "version": "1.0",
+      "size_mb": 28.5,
+      "accuracy": 0.912,
+      "precision": 0.915,
+      "recall": 0.898,
+      "f1_score": 0.905,
+      "inference_time_ms": 80,
+      "max_sequence_length": 128,
+      "vocab_size": 30522,
+      "input_shape": [1, 128],
+      "output_shape": [1, 2],
+      "recommended_threshold": 0.8,
+      "description": "DistilBERT-based SMS phishing classifier optimized for mobile deployment"
+    },
+    "lstm": {
+      "filename": "lstm_sms_classifier.tflite",
+      "version": "1.0",
+      "size_mb": 8.2,
+      "accuracy": 0.858,
+      "precision": 0.862,
+      "recall": 0.851,
+      "f1_score": 0.856,
+      "inference_time_ms": 15,
+      "max_sequence_length": 128,
+      "vocab_size": 10000,
+      "input_shape": [1, 128],
+      "output_shape": [1, 2],
+      "recommended_threshold": 0.7,
+      "description": "Lightweight LSTM model for fast SMS phishing detection"
+    },
+    "bert": {
+      "filename": "bert_sms_classifier.tflite",
+      "version": "1.0",
+      "size_mb": 95.3,
+      "accuracy": 0.945,
+      "precision": 0.948,
+      "recall": 0.941,
+      "f1_score": 0.944,
+      "inference_time_ms": 150,
+      "max_sequence_length": 128,
+      "vocab_size": 30522,
+      "input_shape": [1, 128],
+      "output_shape": [1, 2],
+      "recommended_threshold": 0.85,
+      "description": "Full BERT model for maximum accuracy SMS phishing detection"
+    }
+  },
+  "vocabulary": {
+    "filename": "vocab.json",
+    "version": "1.0",
+    "size": 10000,
+    "special_tokens": {
+      "pad": "[PAD]",
+      "unk": "[UNK]",
+      "cls": "[CLS]",
+      "sep": "[SEP]",
+      "mask": "[MASK]"
+    },
+    "description": "Vocabulary mapping for text tokenization"
+  },
+  "preprocessing": {
+    "max_length": 128,
+    "truncation": true,
+    "padding": "max_length",
+    "lowercase": true,
+    "remove_special_chars": false,
+    "add_special_tokens": true
+  },
+  "training_info": {
+    "dataset_size": 50000,
+    "train_split": 0.8,
+    "val_split": 0.1,
+    "test_split": 0.1,
+    "epochs": 3,
+    "batch_size": 16,
+    "learning_rate": 2e-5,
+    "optimizer": "adam",
+    "loss_function": "sparse_categorical_crossentropy",
+    "training_date": "2024-10-02",
+    "framework": "tensorflow",
+    "transformers_version": "4.35.0"
+  },
+  "deployment": {
+    "target_platforms": ["android", "ios"],
+    "min_android_api": 21,
+    "min_ios_version": "12.0",
+    "memory_requirements_mb": 100,
+    "storage_requirements_mb": 50,
+    "offline_capable": true,
+    "update_mechanism": "app_update"
+  },
+  "performance_benchmarks": {
+    "test_accuracy": 0.912,
+    "false_positive_rate": 0.021,
+    "false_negative_rate": 0.102,
+    "average_inference_time_ms": 80,
+    "memory_usage_mb": 45,
+    "battery_impact": "low"
+  },
+  "feature_importance": {
+    "url_presence": 0.35,
+    "urgent_keywords": 0.28,
+    "financial_terms": 0.22,
+    "sender_pattern": 0.15
+  }
+}

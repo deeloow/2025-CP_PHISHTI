@@ -45,8 +45,14 @@ Future<void> _initializeServices() async {
   // Initialize database
   await DatabaseService.instance.initialize();
   
-  // Initialize ML service
-  await MLService.instance.initialize();
+  // Initialize ML service in hybrid mode (online + offline)
+  await MLService.instance.initialize(
+    serviceMode: MLServiceMode.hybrid,
+    // Add your API keys here (store securely in production)
+    // huggingFaceApiKey: 'your_hugging_face_api_key',
+    // googleCloudApiKey: 'your_google_cloud_api_key',
+    // customApiKey: 'your_custom_api_key',
+  );
   
   // Initialize notification service
   await NotificationService.instance.initialize();
