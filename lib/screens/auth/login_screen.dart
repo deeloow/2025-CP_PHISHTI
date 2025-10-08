@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/providers/auth_provider.dart';
+import '../../core/services/fallback_auth_service.dart';
+import '../../core/services/biometric_service.dart';
+import 'register_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -16,12 +19,52 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _isBiometricAvailable = false;
+  bool _isBiometricEnabled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeBiometric();
+  }
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+  
+  Future<void> _initializeBiometric() async {
+    try {
+      await BiometricService.instance.initialize();
+      final isAvailable = await BiometricService.instance.isBiometricAvailable();
+      final isEnabled = await BiometricService.instance.isBiometricEnabledInSettings();
+      
+      setState(() {
+        _isBiometricAvailable = isAvailable;
+        _isBiometricEnabled = isEnabled;
+      });
+    } catch (e) {
+      print('Error initializing biometric: $e');
+    }
+  }
+  
+  Future<void> _loginWithBiometric() async {
+    try {
+      final isAuthenticated = await BiometricService.instance.authenticateForAccess();
+      if (isAuthenticated) {
+        // Navigate to dashboard
+        context.go('/dashboard');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Biometric authentication failed: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
@@ -30,7 +73,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final googleSignInState = ref.watch(googleSignInProvider);
 
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.background,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -79,7 +122,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         'Welcome Back',
                         style: Theme.of(context).textTheme.displaySmall?.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onBackground,
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
                       
@@ -88,7 +131,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       Text(
                         'Sign in to continue protecting your messages',
                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: Theme.of(context).colorScheme.onBackground.withOpacity(0.7),
+                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                         ),
                         textAlign: TextAlign.center,
                       ),
@@ -167,6 +210,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       : const Text('Sign In'),
                 ),
                 
+                // Biometric Login Button
+                if (_isBiometricAvailable && _isBiometricEnabled) ...[
+                  const SizedBox(height: 16),
+                  OutlinedButton.icon(
+                    onPressed: _loginWithBiometric,
+                    icon: const Icon(Icons.fingerprint),
+                    label: const Text('Sign In with Biometric'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ],
+                
                 const SizedBox(height: 16),
                 
                 // Forgot Password
@@ -186,7 +242,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       child: Text(
                         'OR',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onBackground.withOpacity(0.5),
+                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
                         ),
                       ),
                     ),
@@ -221,11 +277,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     Text(
                       "Don't have an account? ",
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onBackground.withOpacity(0.7),
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                       ),
                     ),
                     TextButton(
-                      onPressed: () => context.go('/auth/register'),
+                      onPressed: () {
+                        print('Navigating to register screen...');
+                        try {
+                          context.go('/auth/register');
+                        } catch (e) {
+                          print('Navigation error: $e');
+                          // Fallback navigation
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (context) => const RegisterScreen(),
+                            ),
+                          );
+                        }
+                      },
                       child: const Text('Sign Up'),
                     ),
                   ],
@@ -233,7 +302,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 
                 const SizedBox(height: 24),
                 
-                // Error Message
+                // Error Message for Login
                 if (loginState.errorMessage != null)
                   Container(
                     padding: const EdgeInsets.all(12),
@@ -263,6 +332,37 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ],
                     ),
                   ),
+                
+                // Error Message for Google Sign-In
+                if (googleSignInState.errorMessage != null)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.error.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.error.withOpacity(0.3),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          color: Theme.of(context).colorScheme.error,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            googleSignInState.errorMessage!,
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
               ],
             ),
           ),
@@ -281,6 +381,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   void _handleGoogleSignIn() {
+    // Show Firebase configuration warning
+    showFirebaseConfigWarning(context);
+    
+    // Still try Google Sign-In in case Firebase is configured
     ref.read(googleSignInProvider.notifier).signInWithGoogle();
   }
 

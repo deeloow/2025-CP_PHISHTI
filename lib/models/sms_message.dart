@@ -16,6 +16,10 @@ class SmsMessage {
   final bool isWhitelisted;
   final DateTime? archivedAt;
   final String? reason; // Why it was flagged as phishing
+  final String? threadId; // SMS thread/conversation ID
+  final bool isRead; // Whether the message has been read
+  final MessageType messageType; // SMS or MMS
+  final String? contactName; // Contact name if available
 
   const SmsMessage({
     required this.id,
@@ -30,6 +34,10 @@ class SmsMessage {
     this.isWhitelisted = false,
     this.archivedAt,
     this.reason,
+    this.threadId,
+    this.isRead = false,
+    this.messageType = MessageType.sms,
+    this.contactName,
   });
 
   factory SmsMessage.fromJson(Map<String, dynamic> json) =>
@@ -50,6 +58,10 @@ class SmsMessage {
     bool? isWhitelisted,
     DateTime? archivedAt,
     String? reason,
+    String? threadId,
+    bool? isRead,
+    MessageType? messageType,
+    String? contactName,
   }) {
     return SmsMessage(
       id: id ?? this.id,
@@ -64,6 +76,10 @@ class SmsMessage {
       isWhitelisted: isWhitelisted ?? this.isWhitelisted,
       archivedAt: archivedAt ?? this.archivedAt,
       reason: reason ?? this.reason,
+      threadId: threadId ?? this.threadId,
+      isRead: isRead ?? this.isRead,
+      messageType: messageType ?? this.messageType,
+      contactName: contactName ?? this.contactName,
     );
   }
 
@@ -80,4 +96,10 @@ class SmsMessage {
   String toString() {
     return 'SmsMessage(id: $id, sender: $sender, body: $body, isPhishing: $isPhishing)';
   }
+}
+
+/// Message type enum
+enum MessageType {
+  sms,
+  mms,
 }

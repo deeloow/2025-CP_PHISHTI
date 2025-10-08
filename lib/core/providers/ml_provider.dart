@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/ml_service.dart';
 import '../../models/phishing_detection.dart';
+import '../../models/sms_message.dart';
 
 // ML service provider
 final mlServiceProvider = Provider<MLService>((ref) {

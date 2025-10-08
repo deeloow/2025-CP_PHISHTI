@@ -205,7 +205,7 @@ class _MLSettingsScreenState extends ConsumerState<MLSettingsScreen> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<ModelType>(
-              value: _selectedModel,
+              initialValue: _selectedModel,
               decoration: const InputDecoration(
                 labelText: 'Select Model',
                 border: OutlineInputBorder(),

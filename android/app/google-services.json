@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "678613475039",
+    "project_id": "phishti-detector-2e114",
+    "storage_bucket": "phishti-detector-2e114.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:678613475039:android:97b0189499d5031b93536a",
+        "android_client_info": {
+          "package_name": "com.example.phishti_detector"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBNnh-RL_flNR2a-puvSiVHS4PBxVmIGxc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -3,7 +3,7 @@ import 'package:json_annotation/json_annotation.dart';
 part 'user.g.dart';
 
 @JsonSerializable()
-class User {
+class AppUser {
   final String id;
   final String email;
   final String? displayName;
@@ -13,7 +13,7 @@ class User {
   final UserPreferences preferences;
   final SecuritySettings securitySettings;
 
-  const User({
+  const AppUser({
     required this.id,
     required this.email,
     this.displayName,
@@ -24,11 +24,11 @@ class User {
     required this.securitySettings,
   });
 
-  factory User.fromJson(Map<String, dynamic> json) => _$UserFromJson(json);
+  factory AppUser.fromJson(Map<String, dynamic> json) => _$AppUserFromJson(json);
 
-  Map<String, dynamic> toJson() => _$UserToJson(this);
+  Map<String, dynamic> toJson() => _$AppUserToJson(this);
 
-  User copyWith({
+  AppUser copyWith({
     String? id,
     String? email,
     String? displayName,
@@ -38,7 +38,7 @@ class User {
     UserPreferences? preferences,
     SecuritySettings? securitySettings,
   }) {
-    return User(
+    return AppUser(
       id: id ?? this.id,
       email: email ?? this.email,
       displayName: displayName ?? this.displayName,

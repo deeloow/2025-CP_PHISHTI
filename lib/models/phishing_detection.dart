@@ -56,7 +56,6 @@ class PhishingDetection {
   }
 }
 
-@JsonSerializable()
 enum PhishingType {
   @JsonValue('sms')
   sms,
@@ -101,7 +100,6 @@ class ThreatMeter {
   }
 }
 
-@JsonSerializable()
 enum ThreatLevel {
   @JsonValue('low')
   low,

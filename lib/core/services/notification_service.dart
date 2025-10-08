@@ -11,7 +11,7 @@ class NotificationService {
   NotificationService._internal();
   
   final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
-  final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
+  // final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance; // Temporarily disabled
   
   bool _isInitialized = false;
   StreamSubscription<RemoteMessage>? _messageSubscription;
@@ -20,7 +20,7 @@ class NotificationService {
     if (_isInitialized) return;
     
     await _initializeLocalNotifications();
-    await _initializeFirebaseMessaging();
+    // await _initializeFirebaseMessaging(); // Temporarily disabled
     _isInitialized = true;
   }
   
@@ -55,6 +55,8 @@ class NotificationService {
   }
   
   Future<void> _initializeFirebaseMessaging() async {
+    // Temporarily disabled Firebase messaging
+    /*
     // Request FCM permission
     final settings = await _firebaseMessaging.requestPermission(
       alert: true,
@@ -69,6 +71,7 @@ class NotificationService {
       // Handle background messages
       FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
     }
+    */
   }
   
   Future<void> _createNotificationChannel() async {
@@ -242,28 +245,38 @@ class NotificationService {
   }
   
   Future<String?> getFCMToken() async {
+    // Temporarily disabled Firebase messaging
+    /*
     try {
       return await _firebaseMessaging.getToken();
     } catch (e) {
       print('Error getting FCM token: $e');
       return null;
     }
+    */
+    return null;
   }
   
   Future<void> subscribeToTopic(String topic) async {
+    // Temporarily disabled Firebase messaging
+    /*
     try {
       await _firebaseMessaging.subscribeToTopic(topic);
     } catch (e) {
       print('Error subscribing to topic: $e');
     }
+    */
   }
-  
+
   Future<void> unsubscribeFromTopic(String topic) async {
+    // Temporarily disabled Firebase messaging
+    /*
     try {
       await _firebaseMessaging.unsubscribeFromTopic(topic);
     } catch (e) {
       print('Error unsubscribing from topic: $e');
     }
+    */
   }
   
   Future<void> dispose() async {
@@ -272,6 +285,8 @@ class NotificationService {
 }
 
 // Background message handler
+/*
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   print('Handling background message: ${message.messageId}');
 }
+*/

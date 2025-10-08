@@ -2,27 +2,61 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import 'core/theme/app_theme.dart';
+import 'core/theme/responsive_helper.dart';
+import 'core/optimizations/performance_optimizer.dart';
+import 'core/optimizations/device_optimizer.dart';
+import 'core/optimizations/performance_monitor.dart';
+import 'core/optimizations/huawei_optimizer.dart';
+import 'core/optimizations/frame_rate_optimizer.dart';
 import 'core/router/app_router.dart';
 import 'core/services/notification_service.dart';
-import 'core/services/sms_service.dart';
 import 'core/services/ml_service.dart';
+import 'core/services/database_service_interface.dart';
 import 'core/services/database_service.dart';
-import 'core/providers/auth_provider.dart';
-import 'core/providers/sms_provider.dart';
-import 'core/providers/ml_provider.dart';
+import 'core/services/firebase_test_service.dart';
+import 'core/services/auth_service.dart';
+import 'core/services/biometric_service.dart';
+import 'core/services/sms_integration_service.dart';
+import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize Firebase
-  await Firebase.initializeApp();
+  // Initialize Firebase (temporarily disabled until you configure Firebase)
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    
+  // Test Firebase connection (disabled until Firebase is configured)
+  // await FirebaseTestService.runAllTests();
+  } catch (e) {
+    print('⚠️ Firebase not configured yet. Please follow the Firebase setup guide.');
+    print('📖 See FIREBASE_SETUP_GUIDE.md for instructions.');
+  }
   
   // Initialize services
   await _initializeServices();
+  
+  // Initialize guest mode
+  await AuthService.instance.initializeGuestMode();
+  
+  // Initialize device-specific optimizations
+  await DeviceOptimizer.initialize();
+  
+  // Apply Huawei-specific optimizations
+  HuaweiOptimizer.initialize();
+  
+  // Apply frame rate optimizations (disabled for better performance)
+  // FrameRateOptimizer.initialize();
+  
+  // Apply performance optimizations
+  PerformanceOptimizer.optimizeForLowEndDevices();
+  MemoryManager.scheduleMemoryCleanup();
   
   // Set system UI overlay style
   SystemChrome.setSystemUIOverlayStyle(
@@ -57,6 +91,12 @@ Future<void> _initializeServices() async {
   // Initialize notification service
   await NotificationService.instance.initialize();
   
+  // Initialize biometric service
+  await BiometricService.instance.initialize();
+  
+  // Initialize SMS integration service
+  await SmsIntegrationService.instance.initialize();
+  
   // Request permissions
   await _requestPermissions();
 }
@@ -64,8 +104,11 @@ Future<void> _initializeServices() async {
 Future<void> _requestPermissions() async {
   final permissions = [
     Permission.sms,
+    Permission.phone,
     Permission.notification,
     Permission.storage,
+    Permission.camera,
+    Permission.contacts,
   ];
   
   for (final permission in permissions) {
@@ -80,11 +123,36 @@ class PhishtiDetectorApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
     
-    return MaterialApp.router(
-      title: 'Phishti Detector',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.darkTheme,
-      routerConfig: router,
+    return ScreenUtilInit(
+      designSize: const Size(375, 812),
+      minTextAdapt: true,
+      splitScreenMode: true,
+      builder: (context, child) {
+        // Initialize responsive helper
+        ResponsiveHelper.init(context);
+        
+        return MaterialApp.router(
+          title: 'PhishTi: An ML-Based Mobile Application for Real-Time SMS Phishing Detection with URL Filtering',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.darkTheme,
+          routerConfig: router,
+          builder: (context, child) {
+            // Android-specific optimizations
+            return HuaweiOptimizer.buildHuaweiOptimizedWidget(
+              PerformanceMonitor.buildPerformanceOptimizedWidget(
+                MediaQuery(
+                  data: MediaQuery.of(context).copyWith(
+                    textScaler: TextScaler.linear(
+                      MediaQuery.of(context).textScaler.scale(1.0).clamp(0.8, 1.2),
+                    ),
+                  ),
+                  child: child!,
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

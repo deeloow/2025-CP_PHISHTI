@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/providers/auth_provider.dart';
+import '../../core/services/fallback_auth_service.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -22,6 +23,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   bool _agreeToTerms = false;
 
   @override
+  void initState() {
+    super.initState();
+    print('Register screen initialized');
+  }
+
+  @override
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
@@ -34,9 +41,24 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   Widget build(BuildContext context) {
     final registerState = ref.watch(registerProvider);
     final googleSignInState = ref.watch(googleSignInProvider);
+    
+    // Handle successful registration
+    ref.listen<RegisterState>(registerProvider, (previous, next) {
+      if (next.isSuccess) {
+        print('Registration successful!');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Account created successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        // Navigate to dashboard
+        context.go('/dashboard');
+      }
+    });
 
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.background,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         title: const Text('Create Account'),
         backgroundColor: Colors.transparent,
@@ -90,7 +112,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         'Join Phishti Detector',
                         style: Theme.of(context).textTheme.displaySmall?.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onBackground,
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
                       
@@ -99,7 +121,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       Text(
                         'Protect yourself from SMS phishing attacks',
                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: Theme.of(context).colorScheme.onBackground.withOpacity(0.7),
+                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                         ),
                         textAlign: TextAlign.center,
                       ),
@@ -286,7 +308,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       child: Text(
                         'OR',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onBackground.withOpacity(0.5),
+                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
                         ),
                       ),
                     ),
@@ -321,7 +343,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     Text(
                       "Already have an account? ",
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onBackground.withOpacity(0.7),
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                       ),
                     ),
                     TextButton(
@@ -363,6 +385,37 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       ],
                     ),
                   ),
+                
+                // Success Message
+                if (registerState.isSuccess)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: Colors.green.withOpacity(0.3),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.check_circle_outline,
+                          color: Colors.green,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Account created successfully!',
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Colors.green,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
               ],
             ),
           ),
@@ -371,12 +424,74 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     );
   }
 
-  void _handleRegister() {
+  void _handleRegister() async {
+    print('Register button clicked');
     if (_formKey.currentState!.validate()) {
-      ref.read(registerProvider.notifier).signUpWithEmailAndPassword(
+      print('Form validation passed');
+      print('Email: ${_emailController.text.trim()}');
+      print('Name: ${_nameController.text.trim()}');
+      print('Password length: ${_passwordController.text.length}');
+      
+      try {
+        // Try Firebase registration first
+        ref.read(registerProvider.notifier).signUpWithEmailAndPassword(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+          displayName: _nameController.text.trim(),
+        );
+        
+        // Wait a bit to see if Firebase registration works
+        await Future.delayed(const Duration(seconds: 2));
+        
+        // If Firebase fails, try fallback registration
+        final registerState = ref.read(registerProvider);
+        if (registerState.errorMessage != null) {
+          print('Firebase registration failed, trying fallback...');
+          await _handleFallbackRegistration();
+        }
+      } catch (e) {
+        print('Firebase registration error: $e');
+        await _handleFallbackRegistration();
+      }
+    } else {
+      print('Form validation failed');
+    }
+  }
+  
+  Future<void> _handleFallbackRegistration() async {
+    try {
+      final result = await FallbackAuthService.instance.signUpWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text,
         displayName: _nameController.text.trim(),
+      );
+      
+      if (result.isSuccess) {
+        print('Fallback registration successful!');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Account created successfully (offline mode)!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        // Navigate to dashboard
+        context.go('/dashboard');
+      } else {
+        print('Fallback registration failed: ${result.errorMessage}');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Registration failed: ${result.errorMessage}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Fallback registration error: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Registration failed: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }

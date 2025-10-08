@@ -5,13 +5,11 @@ import android.content.Context
 import android.content.Intent
 import android.provider.Telephony
 import android.telephony.SmsMessage
-import android.util.Log
-import io.flutter.plugin.common.MethodChannel
+import io.flutter.plugin.common.EventChannel
 
 class SmsReceiver : BroadcastReceiver() {
     companion object {
-        private const val TAG = "SmsReceiver"
-        private const val CHANNEL_NAME = "com.example.phishti_detector/sms"
+        var eventSink: EventChannel.EventSink? = null
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -19,34 +17,21 @@ class SmsReceiver : BroadcastReceiver() {
             val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
             
             for (message in messages) {
-                val sender = message.originatingAddress ?: "Unknown"
-                val body = message.messageBody ?: ""
-                val timestamp = message.timestampMillis
+                val smsData = hashMapOf<String, Any>(
+                    "id" to System.currentTimeMillis().toString(),
+                    "sender" to (message.originatingAddress ?: ""),
+                    "body" to (message.messageBody ?: ""),
+                    "timestamp" to message.timestampMillis,
+                    "messageType" to "SMS",
+                    "threadId" to "",
+                    "isRead" to false,
+                    "isPhishing" to false,
+                    "phishingScore" to 0.0,
+                    "reason" to ""
+                )
                 
-                Log.d(TAG, "Received SMS from $sender: $body")
-                
-                // Send to Flutter
-                sendSmsToFlutter(context, sender, body, timestamp)
+                eventSink?.success(smsData)
             }
-        }
-    }
-    
-    private fun sendSmsToFlutter(context: Context, sender: String, body: String, timestamp: Long) {
-        try {
-            val methodChannel = MethodChannel(
-                context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.Activity,
-                CHANNEL_NAME
-            )
-            
-            val arguments = mapOf(
-                "sender" to sender,
-                "body" to body,
-                "timestamp" to timestamp
-            )
-            
-            methodChannel.invokeMethod("onSmsReceived", arguments)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error sending SMS to Flutter: ${e.message}")
         }
     }
 }

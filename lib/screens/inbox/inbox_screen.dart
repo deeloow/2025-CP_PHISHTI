@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/providers/sms_provider.dart';
+import '../../core/services/sms_integration_service.dart';
+import '../../core/services/auth_service.dart';
 import '../../models/sms_message.dart';
 import '../widgets/sms_message_tile.dart';
+import '../widgets/sms_thread_tile.dart';
+import 'sms_composer_screen.dart';
+import 'sms_conversation_screen.dart';
 
 class InboxScreen extends ConsumerStatefulWidget {
   const InboxScreen({super.key});
@@ -12,22 +18,158 @@ class InboxScreen extends ConsumerStatefulWidget {
   ConsumerState<InboxScreen> createState() => _InboxScreenState();
 }
 
-class _InboxScreenState extends ConsumerState<InboxScreen> {
+class _InboxScreenState extends ConsumerState<InboxScreen> with TickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  bool _isLoading = true;
+  bool _hasSmsPermissions = false;
+  bool _isDefaultSmsApp = false;
+  
+  late TabController _tabController;
+  List<SmsThread> _smsThreads = [];
+  List<SmsMessage> _allMessages = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _initializeSmsIntegration();
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _tabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _initializeSmsIntegration() async {
+    try {
+      // Check SMS permissions
+      final hasPermissions = await SmsIntegrationService.instance.hasSmsPermissions();
+      final isDefault = await SmsIntegrationService.instance.isDefaultSmsApp();
+      
+      setState(() {
+        _hasSmsPermissions = hasPermissions;
+        _isDefaultSmsApp = isDefault;
+        _isLoading = false;
+      });
+
+      if (hasPermissions) {
+        await _loadSmsMessages();
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      print('Error initializing SMS integration: $e');
+    }
+  }
+
+  Future<void> _loadSmsMessages() async {
+    if (_hasSmsPermissions) {
+      try {
+        final messages = await SmsIntegrationService.instance.getAllSmsMessages();
+        final threads = await SmsIntegrationService.instance.getSmsThreads();
+        
+        setState(() {
+          _allMessages = messages;
+          _smsThreads = threads;
+          _isLoading = false;
+        });
+      } catch (e) {
+        setState(() {
+          _isLoading = false;
+        });
+        _showErrorSnackBar('Failed to load SMS messages: $e');
+      }
+    } else {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _requestSmsPermissions() async {
+    try {
+      final granted = await SmsIntegrationService.instance.requestSmsPermissions();
+      if (granted) {
+        setState(() {
+          _hasSmsPermissions = true;
+        });
+        await _loadSmsMessages();
+        _showSuccessSnackBar('SMS permissions granted!');
+      } else {
+        _showErrorSnackBar('SMS permissions denied');
+      }
+    } catch (e) {
+      _showErrorSnackBar('Error requesting SMS permissions: $e');
+    }
+  }
+
+  Future<void> _requestSetAsDefaultSmsApp() async {
+    try {
+      final success = await SmsIntegrationService.instance.requestSetAsDefaultSmsApp();
+      if (success) {
+        setState(() {
+          _isDefaultSmsApp = true;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please set PhishTi as your default SMS app in device settings'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error requesting to set as default SMS app: $e');
+    }
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  Future<void> _syncSmsMessages() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final success = await SmsIntegrationService.instance.syncSmsMessages();
+      if (success) {
+        _showSuccessSnackBar('SMS messages synced successfully!');
+        await _initializeSmsIntegration();
+      } else {
+        _showErrorSnackBar('Failed to sync SMS messages');
+      }
+    } catch (e) {
+      _showErrorSnackBar('Error syncing messages: $e');
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final inboxMessages = ref.watch(inboxMessagesProvider);
-
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.background,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: CustomScrollView(
         slivers: [
           // App Bar
@@ -35,13 +177,31 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
             expandedHeight: 120,
             floating: false,
             pinned: true,
-            backgroundColor: Theme.of(context).colorScheme.background,
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            actions: [
+              IconButton(
+                onPressed: _syncSmsMessages,
+                icon: _isLoading 
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.sync),
+                tooltip: 'Sync SMS Messages',
+              ),
+              IconButton(
+                onPressed: () => context.go('/inbox/compose'),
+                icon: const Icon(Icons.add_comment),
+                tooltip: 'New Message',
+              ),
+            ],
             flexibleSpace: FlexibleSpaceBar(
               title: Text(
-                'Inbox',
+                'Messages',
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.onBackground,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
               background: Container(
@@ -57,39 +217,23 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                 ),
               ),
             ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.refresh),
-                onPressed: () {
-                  ref.invalidate(inboxMessagesProvider);
-                },
-              ),
-            ],
           ),
-          
+
           // Search Bar
-          SliverPadding(
-            padding: const EdgeInsets.all(16),
-            sliver: SliverToBoxAdapter(
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
               child: TextField(
                 controller: _searchController,
                 decoration: InputDecoration(
                   hintText: 'Search messages...',
                   prefixIcon: const Icon(Icons.search),
-                  suffixIcon: _searchQuery.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() {
-                              _searchQuery = '';
-                            });
-                          },
-                        )
-                      : null,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
                   ),
+                  filled: true,
+                  fillColor: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
                 ),
                 onChanged: (value) {
                   setState(() {
@@ -99,237 +243,92 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
               ),
             ),
           ),
-          
-          // Messages List
-          inboxMessages.when(
-            data: (messages) {
-              final filteredMessages = _filterMessages(messages);
-              
-              if (filteredMessages.isEmpty) {
-                return SliverFillRemaining(
-                  child: _buildEmptyState(context),
-                );
-              }
-              
-              return SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final message = filteredMessages[index];
-                      return SmsMessageTile(
-                        message: message,
-                        onTap: () => _showMessageDetails(context, message),
-                        onLongPress: () => _showMessageActions(context, message),
-                      );
-                    },
-                    childCount: filteredMessages.length,
+
+          // Tab Bar
+          SliverToBoxAdapter(
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: TabBar(
+                controller: _tabController,
+                indicator: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                labelColor: Theme.of(context).colorScheme.onPrimary,
+                unselectedLabelColor: Theme.of(context).colorScheme.onSurface,
+                tabs: const [
+                  Tab(text: 'Conversations'),
+                  Tab(text: 'All Messages'),
+                ],
+              ),
+            ),
+          ),
+
+          // Content
+          if (!_hasSmsPermissions)
+            _buildPermissionDeniedWidget()
+          else if (!_isDefaultSmsApp)
+            _buildDefaultSmsAppPrompt()
+          else
+            _buildMessagesContent(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPermissionDeniedWidget() {
+    return SliverFillRemaining(
+      child: _EmptyStateWidget(
+        icon: Icons.sms_failed,
+        title: 'SMS Permissions Required',
+        message: 'To view and send SMS messages, please grant the necessary permissions.',
+        actionText: 'Grant Permissions',
+        onAction: _requestSmsPermissions,
+      ),
+    );
+  }
+
+  Widget _buildDefaultSmsAppPrompt() {
+    return SliverToBoxAdapter(
+      child: Container(
+        margin: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.primaryContainer,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Icon(Icons.info_outline, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Set as Default SMS App',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onPrimaryContainer,
+                    ),
                   ),
                 ),
-              );
-            },
-            loading: () => SliverFillRemaining(
-              child: _buildLoadingState(context),
+              ],
             ),
-            error: (error, stack) => SliverFillRemaining(
-              child: _buildErrorState(context, error.toString()),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  List<SmsMessage> _filterMessages(List<SmsMessage> messages) {
-    if (_searchQuery.isEmpty) return messages;
-    
-    return messages.where((message) {
-      return message.sender.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-             message.body.toLowerCase().contains(_searchQuery.toLowerCase());
-    }).toList();
-  }
-
-  Widget _buildEmptyState(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.inbox_outlined,
-            size: 80,
-            color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'No Messages',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Your inbox is empty. New messages will appear here.',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: Theme.of(context).colorScheme.onBackground.withOpacity(0.7),
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 32),
-          ElevatedButton.icon(
-            onPressed: () {
-              // Handle compose message
-            },
-            icon: const Icon(Icons.edit),
-            label: const Text('Compose Message'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLoadingState(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircularProgressIndicator(
-            color: Theme.of(context).colorScheme.primary,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Loading messages...',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: Theme.of(context).colorScheme.onBackground.withOpacity(0.7),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildErrorState(BuildContext context, String error) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.error_outline,
-            size: 80,
-            color: Theme.of(context).colorScheme.error.withOpacity(0.5),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'Error Loading Messages',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            error,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: Theme.of(context).colorScheme.error,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 32),
-          ElevatedButton(
-            onPressed: () {
-              ref.invalidate(inboxMessagesProvider);
-            },
-            child: const Text('Retry'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showMessageDetails(BuildContext context, SmsMessage message) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Message from ${message.sender}'),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _DetailRow(label: 'Time', value: _formatDateTime(message.timestamp)),
-              _DetailRow(label: 'Sender', value: message.sender),
-              const SizedBox(height: 16),
-              const Text(
-                'Message:',
-                style: TextStyle(fontWeight: FontWeight.bold),
+            const SizedBox(height: 8),
+            Text(
+              'To enable full SMS functionality, including receiving new messages, please set PhishTi as your default SMS app in your device settings.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(0.8),
               ),
-              const SizedBox(height: 8),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.grey.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(message.body),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Close'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _showMessageActions(context, message);
-            },
-            child: const Text('Actions'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showMessageActions(BuildContext context, SmsMessage message) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.reply),
-              title: const Text('Reply'),
-              onTap: () {
-                Navigator.of(context).pop();
-                // Handle reply
-              },
             ),
-            ListTile(
-              leading: const Icon(Icons.forward),
-              title: const Text('Forward'),
-              onTap: () {
-                Navigator.of(context).pop();
-                // Handle forward
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.copy),
-              title: const Text('Copy'),
-              onTap: () {
-                Navigator.of(context).pop();
-                // Handle copy
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete),
-              title: const Text('Delete'),
-              onTap: () {
-                Navigator.of(context).pop();
-                _confirmDelete(context, message);
-              },
+            const SizedBox(height: 12),
+            ElevatedButton.icon(
+              onPressed: _requestSetAsDefaultSmsApp,
+              icon: const Icon(Icons.app_settings_alt),
+              label: const Text('Open Settings'),
             ),
           ],
         ),
@@ -337,72 +336,129 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
     );
   }
 
-  void _confirmDelete(BuildContext context, SmsMessage message) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Message'),
-        content: const Text('Are you sure you want to delete this message?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              ref.read(smsActionsProvider.notifier).deleteMessage(message.id);
-            },
-            child: const Text('Delete'),
-          ),
+  Widget _buildMessagesContent() {
+    return SliverFillRemaining(
+      child: TabBarView(
+        controller: _tabController,
+        children: [
+          // Conversations Tab
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _smsThreads.isEmpty
+                  ? _EmptyStateWidget(
+                      icon: Icons.chat_bubble_outline,
+                      title: 'No Conversations',
+                      message: 'Start a conversation by sending a message.',
+                      actionText: 'New Message',
+                      onAction: () => context.go('/inbox/compose'),
+                    )
+                  : ListView.builder(
+                      itemCount: _smsThreads.length,
+                      itemBuilder: (context, index) {
+                        final thread = _smsThreads[index];
+                         if (_searchQuery.isNotEmpty) {
+                           if (!thread.contactName.toLowerCase().contains(_searchQuery.toLowerCase()) &&
+                               !thread.lastMessage.toLowerCase().contains(_searchQuery.toLowerCase())) {
+                             return const SizedBox.shrink();
+                           }
+                         }
+                        return SmsThreadTile(
+                          thread: thread,
+                          onTap: () {
+                            context.go('/inbox/conversation/${thread.id}', extra: thread);
+                          },
+                        );
+                      },
+                    ),
+
+          // All Messages Tab
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _allMessages.isEmpty
+                  ? _EmptyStateWidget(
+                      icon: Icons.message_outlined,
+                      title: 'No Messages',
+                      message: 'No SMS messages found on your device.',
+                      actionText: 'Sync Messages',
+                      onAction: _syncSmsMessages,
+                    )
+                  : ListView.builder(
+                      itemCount: _allMessages.length,
+                      itemBuilder: (context, index) {
+                        final message = _allMessages[index];
+                        if (_searchQuery.isNotEmpty) {
+                          if (!message.sender.toLowerCase().contains(_searchQuery.toLowerCase()) &&
+                              !message.body.toLowerCase().contains(_searchQuery.toLowerCase())) {
+                            return const SizedBox.shrink();
+                          }
+                        }
+                        return SmsMessageTile(
+                          message: message,
+                          onTap: () {
+                            if (message.threadId != null) {
+                              context.go('/inbox/conversation/${message.threadId}');
+                            }
+                          },
+                        );
+                      },
+                    ),
         ],
       ),
     );
   }
-
-  String _formatDateTime(DateTime dateTime) {
-    final now = DateTime.now();
-    final difference = now.difference(dateTime);
-    
-    if (difference.inDays > 0) {
-      return '${difference.inDays} days ago';
-    } else if (difference.inHours > 0) {
-      return '${difference.inHours} hours ago';
-    } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes} minutes ago';
-    } else {
-      return 'Just now';
-    }
-  }
 }
 
-class _DetailRow extends StatelessWidget {
-  final String label;
-  final String value;
+class _EmptyStateWidget extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String message;
+  final String actionText;
+  final VoidCallback onAction;
 
-  const _DetailRow({
-    required this.label,
-    required this.value,
+  const _EmptyStateWidget({
+    required this.icon,
+    required this.title,
+    required this.message,
+    required this.actionText,
+    required this.onAction,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 80,
-            child: Text(
-              '$label:',
-              style: const TextStyle(fontWeight: FontWeight.w500),
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 64,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
             ),
-          ),
-          Expanded(
-            child: Text(value),
-          ),
-        ],
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: onAction,
+              icon: Icon(icon),
+              label: Text(actionText),
+            ),
+          ],
+        ),
       ),
     );
   }

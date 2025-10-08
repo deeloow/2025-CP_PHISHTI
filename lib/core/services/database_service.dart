@@ -1,15 +1,17 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:sqflite_sqlcipher/sqflite.dart';
+import 'dart:typed_data';
+import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:crypto/crypto.dart';
 import 'package:encrypt/encrypt.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../models/sms_message.dart';
-import '../../models/user.dart';
 import '../../models/phishing_detection.dart';
+import 'database_service_interface.dart';
 
-class DatabaseService {
+class DatabaseService implements DatabaseServiceInterface {
   static final DatabaseService _instance = DatabaseService._internal();
   static DatabaseService get instance => _instance;
   
@@ -21,7 +23,7 @@ class DatabaseService {
   
   Future<void> initialize() async {
     final key = await _getOrCreateEncryptionKey();
-    _key = Key(key);
+    _key = Key(Uint8List.fromList(key.codeUnits));
     _encrypter = Encrypter(AES(_key));
     
     final databasePath = await getDatabasesPath();
@@ -31,7 +33,6 @@ class DatabaseService {
       path,
       version: 1,
       onCreate: _onCreate,
-      password: key,
     );
   }
   
@@ -118,12 +119,55 @@ class DatabaseService {
       )
     ''');
     
+    // Blocked senders table
+    await db.execute('''
+      CREATE TABLE blocked_senders (
+        id TEXT PRIMARY KEY,
+        sender TEXT NOT NULL UNIQUE,
+        reason TEXT,
+        blocked_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+        auto_blocked INTEGER NOT NULL DEFAULT 0,
+        message_count INTEGER NOT NULL DEFAULT 1
+      )
+    ''');
+    
+    // Blocked URLs table
+    await db.execute('''
+      CREATE TABLE blocked_urls (
+        id TEXT PRIMARY KEY,
+        url TEXT NOT NULL UNIQUE,
+        domain TEXT NOT NULL,
+        reason TEXT,
+        threat_level TEXT NOT NULL DEFAULT 'medium',
+        blocked_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+        auto_blocked INTEGER NOT NULL DEFAULT 0,
+        detection_count INTEGER NOT NULL DEFAULT 1
+      )
+    ''');
+    
+    // Message signatures for duplicate detection
+    await db.execute('''
+      CREATE TABLE message_signatures (
+        id TEXT PRIMARY KEY,
+        content_hash TEXT NOT NULL UNIQUE,
+        sender_hash TEXT NOT NULL,
+        first_seen INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+        occurrence_count INTEGER NOT NULL DEFAULT 1,
+        is_phishing INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+    
     // Create indexes for better performance
     await db.execute('CREATE INDEX idx_sms_timestamp ON sms_messages(timestamp)');
     await db.execute('CREATE INDEX idx_sms_phishing ON sms_messages(is_phishing)');
     await db.execute('CREATE INDEX idx_sms_archived ON sms_messages(is_archived)');
     await db.execute('CREATE INDEX idx_detections_message ON phishing_detections(message_id)');
     await db.execute('CREATE INDEX idx_signatures_hash ON phishing_signatures(hash)');
+    await db.execute('CREATE INDEX idx_blocked_senders ON blocked_senders(sender)');
+    await db.execute('CREATE INDEX idx_blocked_urls ON blocked_urls(url)');
+    await db.execute('CREATE INDEX idx_blocked_urls_domain ON blocked_urls(domain)');
+    await db.execute('CREATE INDEX idx_message_signatures_content ON message_signatures(content_hash)');
+    await db.execute('CREATE INDEX idx_message_signatures_sender ON message_signatures(sender_hash)');
   }
   
   // SMS Messages operations
@@ -342,6 +386,178 @@ class DatabaseService {
     }
   }
   
+  // Blocked senders operations
+  Future<void> blockSender(String sender, {String? reason, bool autoBlocked = false}) async {
+    final db = _database!;
+    await db.insert(
+      'blocked_senders',
+      {
+        'id': Uuid().v4(),
+        'sender': sender,
+        'reason': reason,
+        'auto_blocked': autoBlocked ? 1 : 0,
+        'blocked_at': DateTime.now().millisecondsSinceEpoch,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+  
+  Future<bool> isSenderBlocked(String sender) async {
+    final db = _database!;
+    final result = await db.query(
+      'blocked_senders',
+      where: 'sender = ?',
+      whereArgs: [sender],
+      limit: 1,
+    );
+    return result.isNotEmpty;
+  }
+  
+  Future<void> unblockSender(String sender) async {
+    final db = _database!;
+    await db.delete(
+      'blocked_senders',
+      where: 'sender = ?',
+      whereArgs: [sender],
+    );
+  }
+  
+  Future<List<Map<String, dynamic>>> getBlockedSenders() async {
+    final db = _database!;
+    return await db.query('blocked_senders', orderBy: 'blocked_at DESC');
+  }
+  
+  // Blocked URLs operations
+  Future<void> blockUrl(String url, {String? reason, String threatLevel = 'medium', bool autoBlocked = false}) async {
+    final db = _database!;
+    final domain = _extractDomain(url);
+    await db.insert(
+      'blocked_urls',
+      {
+        'id': Uuid().v4(),
+        'url': url,
+        'domain': domain,
+        'reason': reason,
+        'threat_level': threatLevel,
+        'auto_blocked': autoBlocked ? 1 : 0,
+        'blocked_at': DateTime.now().millisecondsSinceEpoch,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+  
+  Future<bool> isUrlBlocked(String url) async {
+    final db = _database!;
+    final result = await db.query(
+      'blocked_urls',
+      where: 'url = ? OR domain = ?',
+      whereArgs: [url, _extractDomain(url)],
+      limit: 1,
+    );
+    return result.isNotEmpty;
+  }
+  
+  Future<void> unblockUrl(String url) async {
+    final db = _database!;
+    await db.delete(
+      'blocked_urls',
+      where: 'url = ?',
+      whereArgs: [url],
+    );
+  }
+  
+  Future<List<Map<String, dynamic>>> getBlockedUrls() async {
+    final db = _database!;
+    return await db.query('blocked_urls', orderBy: 'blocked_at DESC');
+  }
+  
+  // Message signature operations for duplicate detection
+  Future<String> generateMessageSignature(String sender, String body) async {
+    final content = '$sender:${body.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim()}';
+    final bytes = utf8.encode(content);
+    final digest = sha256.convert(bytes);
+    return digest.toString();
+  }
+  
+  Future<bool> isDuplicateMessage(String sender, String body) async {
+    final db = _database!;
+    final signature = await generateMessageSignature(sender, body);
+    final senderHash = sha256.convert(utf8.encode(sender)).toString();
+    
+    final result = await db.query(
+      'message_signatures',
+      where: 'content_hash = ? AND sender_hash = ?',
+      whereArgs: [signature, senderHash],
+      limit: 1,
+    );
+    
+    if (result.isNotEmpty) {
+      // Update occurrence count
+      await db.update(
+        'message_signatures',
+        {'occurrence_count': (result.first['occurrence_count'] as int) + 1},
+        where: 'content_hash = ? AND sender_hash = ?',
+        whereArgs: [signature, senderHash],
+      );
+      return true;
+    }
+    
+    // Store new signature
+    await db.insert(
+      'message_signatures',
+      {
+        'id': Uuid().v4(),
+        'content_hash': signature,
+        'sender_hash': senderHash,
+        'first_seen': DateTime.now().millisecondsSinceEpoch,
+        'occurrence_count': 1,
+        'is_phishing': 0,
+      },
+    );
+    
+    return false;
+  }
+  
+  Future<void> markSignatureAsPhishing(String sender, String body) async {
+    final db = _database!;
+    final signature = await generateMessageSignature(sender, body);
+    final senderHash = sha256.convert(utf8.encode(sender)).toString();
+    
+    await db.update(
+      'message_signatures',
+      {'is_phishing': 1},
+      where: 'content_hash = ? AND sender_hash = ?',
+      whereArgs: [signature, senderHash],
+    );
+  }
+  
+  Future<bool> isKnownPhishingSignature(String sender, String body) async {
+    final db = _database!;
+    final signature = await generateMessageSignature(sender, body);
+    final senderHash = sha256.convert(utf8.encode(sender)).toString();
+    
+    final result = await db.query(
+      'message_signatures',
+      where: 'content_hash = ? AND sender_hash = ? AND is_phishing = 1',
+      whereArgs: [signature, senderHash],
+      limit: 1,
+    );
+    
+    return result.isNotEmpty;
+  }
+  
+  String _extractDomain(String url) {
+    try {
+      final uri = Uri.parse(url.startsWith('http') ? url : 'http://$url');
+      return uri.host;
+    } catch (e) {
+      // If parsing fails, try to extract domain manually
+      final cleanUrl = url.replaceAll(RegExp(r'https?://'), '');
+      final parts = cleanUrl.split('/');
+      return parts.isNotEmpty ? parts[0] : url;
+    }
+  }
+
   Future<void> close() async {
     await _database?.close();
   }

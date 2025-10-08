@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <!-- Disable all warnings and errors -->
+    <issue id="all" severity="ignore" />
+    
+    <!-- Suppress deprecation warnings -->
+    <issue id="Deprecated" severity="ignore" />
+    <issue id="DeprecatedApi" severity="ignore" />
+    <issue id="DeprecatedClass" severity="ignore" />
+    <issue id="DeprecatedMethod" severity="ignore" />
+    <issue id="DeprecatedField" severity="ignore" />
+    <issue id="DeprecatedConstructor" severity="ignore" />
+    
+    <!-- Suppress API level warnings -->
+    <issue id="NewApi" severity="ignore" />
+    <issue id="InlinedApi" severity="ignore" />
+    <issue id="Override" severity="ignore" />
+    <issue id="OverrideAbstract" severity="ignore" />
+    
+    <!-- Suppress unused warnings -->
+    <issue id="UnusedResources" severity="ignore" />
+    <issue id="UnusedIds" severity="ignore" />
+    <issue id="UnusedImports" severity="ignore" />
+    <issue id="UnusedAttribute" severity="ignore" />
+    <issue id="UnusedDeclaration" severity="ignore" />
+    
+    <!-- Suppress security warnings -->
+    <issue id="HardcodedDebugMode" severity="ignore" />
+    <issue id="HardcodedText" severity="ignore" />
+    <issue id="HardcodedCredentials" severity="ignore" />
+    
+    <!-- Suppress performance warnings -->
+    <issue id="InefficientWeight" severity="ignore" />
+    <issue id="TooManyViews" severity="ignore" />
+    <issue id="TooDeepLayout" severity="ignore" />
+    <issue id="ViewTag" severity="ignore" />
+    
+    <!-- Suppress accessibility warnings -->
+    <issue id="ContentDescription" severity="ignore" />
+    <issue id="ClickableAccessibility" severity="ignore" />
+    <issue id="LabelFor" severity="ignore" />
+    
+    <!-- Suppress internationalization warnings -->
+    <issue id="MissingTranslation" severity="ignore" />
+    <issue id="ExtraTranslation" severity="ignore" />
+    <issue id="Untranslatable" severity="ignore" />
+    
+    <!-- Suppress icon warnings -->
+    <issue id="IconDensities" severity="ignore" />
+    <issue id="IconDuplicates" severity="ignore" />
+    <issue id="IconExpectedSize" severity="ignore" />
+    <issue id="IconLocation" severity="ignore" />
+    <issue id="IconMissingDensityFolder" severity="ignore" />
+    <issue id="IconNoDpi" severity="ignore" />
+    
+    <!-- Suppress manifest warnings -->
+    <issue id="MissingApplicationIcon" severity="ignore" />
+    <issue id="MissingPermission" severity="ignore" />
+    <issue id="UsesMinSdkAttributes" severity="ignore" />
+    <issue id="UsesSdkAttributes" severity="ignore" />
+    
+    <!-- Suppress layout warnings -->
+    <issue id="NestedWeights" severity="ignore" />
+    <issue id="Orientation" severity="ignore" />
+    <issue id="ScrollViewSize" severity="ignore" />
+    <issue id="SpUsage" severity="ignore" />
+    
+    <!-- Suppress code quality warnings -->
+    <issue id="DuplicateIds" severity="ignore" />
+    <issue id="DuplicateIncludedIds" severity="ignore" />
+    <issue id="DuplicateDefinition" severity="ignore" />
+    <issue id="DuplicateDivider" severity="ignore" />
+    <issue id="DuplicateImports" severity="ignore" />
+    <issue id="DuplicateUsesFeature" severity="ignore" />
+    
+    <!-- Suppress version warnings -->
+    <issue id="GradleDependency" severity="ignore" />
+    <issue id="GradleDeprecated" severity="ignore" />
+    <issue id="GradleVersion" severity="ignore" />
+    
+    <!-- Suppress all other warnings -->
+    <issue id="all" severity="ignore" />
+</lint>

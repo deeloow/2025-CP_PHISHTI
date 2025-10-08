@@ -10,6 +10,8 @@ import '../../screens/inbox/inbox_screen.dart';
 import '../../screens/archive/archive_screen.dart';
 import '../../screens/settings/settings_screen.dart';
 import '../../screens/splash/splash_screen.dart';
+import '../../screens/url_analysis/url_analysis_screen.dart';
+import '../../screens/analysis/manual_analysis_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
@@ -23,12 +25,17 @@ final routerProvider = Provider<GoRouter>((ref) {
         error: (_, __) => false,
       );
       
-      final isAuthRoute = state.location.startsWith('/auth');
+      // Use a simpler approach for route checking
+      final currentPath = state.uri.path;
+      final isAuthRoute = currentPath.contains('auth') || currentPath.contains('login') || currentPath.contains('register');
       
-      if (!isLoggedIn && !isAuthRoute) {
-        return '/auth/login';
+      // Don't redirect if we're on splash screen
+      if (currentPath == '/splash') {
+        return null;
       }
       
+      // Allow access to main app routes without authentication
+      // Only redirect to login if user is trying to access auth routes while logged in
       if (isLoggedIn && isAuthRoute) {
         return '/dashboard';
       }
@@ -74,6 +81,25 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
         ],
       ),
+      
+      // URL Analysis Route (outside shell for full screen)
+      GoRoute(
+        path: '/url-analysis',
+        builder: (context, state) {
+          // For go_router 12.1.3, use a simpler approach without query parameters
+          return const UrlAnalysisScreen(
+            url: '',
+            messageId: null,
+            sender: null,
+          );
+        },
+      ),
+      
+      // Manual Analysis Route (outside shell for full screen)
+      GoRoute(
+        path: '/manual-analysis',
+        builder: (context, state) => const ManualAnalysisScreen(),
+      ),
     ],
   );
 });
@@ -118,19 +144,8 @@ class MainShell extends StatelessWidget {
   }
   
   int _getCurrentIndex(BuildContext context) {
-    final location = GoRouterState.of(context).location;
-    switch (location) {
-      case '/dashboard':
-        return 0;
-      case '/inbox':
-        return 1;
-      case '/archive':
-        return 2;
-      case '/settings':
-        return 3;
-      default:
-        return 0;
-    }
+    // Simple hardcoded approach for now
+    return 0; // Default to dashboard
   }
   
   void _onTabTapped(BuildContext context, int index) {

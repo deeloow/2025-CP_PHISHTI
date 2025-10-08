@@ -19,7 +19,7 @@ class StatsCardWidget extends StatelessWidget {
   const StatsCardWidget.loading({super.key})
       : title = '',
         value = '',
-        icon = Icons.loading,
+        icon = Icons.hourglass_empty,
         color = Colors.grey,
         isLoading = true;
 

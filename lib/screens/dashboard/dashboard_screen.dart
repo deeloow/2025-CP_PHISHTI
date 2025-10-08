@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/providers/sms_provider.dart';
 import '../../core/providers/ml_provider.dart';
 import '../../core/providers/auth_provider.dart';
-import '../../models/phishing_detection.dart';
+import '../../core/services/auth_service.dart';
 import '../widgets/threat_meter_widget.dart';
 import '../widgets/stats_card_widget.dart';
 import '../widgets/recent_detections_widget.dart';
@@ -56,9 +56,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     final smsStats = ref.watch(smsStatisticsProvider);
     final threatMeter = ref.watch(threatMeterProvider);
     final currentUser = ref.watch(currentAppUserProvider);
+    final authState = ref.watch(authStateProvider);
+    
+    // Check if user is in guest mode
+    final isGuestMode = AuthService.instance.isGuestMode;
 
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.background,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: AnimatedBuilder(
         animation: _fadeAnimation,
         builder: (context, child) {
@@ -71,13 +75,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                   expandedHeight: 120,
                   floating: false,
                   pinned: true,
-                  backgroundColor: Theme.of(context).colorScheme.background,
+                  backgroundColor: Theme.of(context).colorScheme.surface,
                   flexibleSpace: FlexibleSpaceBar(
                     title: Text(
                       'Dashboard',
                       style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.onBackground,
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
                     background: Container(
@@ -94,12 +98,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                     ),
                   ),
                   actions: [
-                    IconButton(
-                      icon: const Icon(Icons.notifications_outlined),
-                      onPressed: () {
-                        // Handle notifications
-                      },
-                    ),
+                    if (!isGuestMode) ...[
+                      IconButton(
+                        icon: const Icon(Icons.notifications_outlined),
+                        onPressed: () {
+                          // Handle notifications
+                        },
+                      ),
+                    ],
                     PopupMenuButton<String>(
                       onSelected: (value) {
                         switch (value) {
@@ -109,26 +115,52 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                           case 'logout':
                             _handleLogout();
                             break;
+                          case 'signin':
+                            context.go('/auth/login');
+                            break;
                         }
                       },
                       itemBuilder: (context) => [
+                        if (isGuestMode)
+                          const PopupMenuItem(
+                            value: 'signin',
+                            child: Row(
+                              children: [
+                                Icon(Icons.login),
+                                SizedBox(width: 8),
+                                Text('Sign In'),
+                              ],
+                            ),
+                          ),
+                        if (!isGuestMode) ...[
+                          const PopupMenuItem(
+                            value: 'profile',
+                            child: Row(
+                              children: [
+                                Icon(Icons.person_outlined),
+                                SizedBox(width: 8),
+                                Text('Profile'),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'logout',
+                            child: Row(
+                              children: [
+                                Icon(Icons.logout),
+                                SizedBox(width: 8),
+                                Text('Logout'),
+                              ],
+                            ),
+                          ),
+                        ],
                         const PopupMenuItem(
                           value: 'profile',
                           child: Row(
                             children: [
-                              Icon(Icons.person_outlined),
+                              Icon(Icons.settings),
                               SizedBox(width: 8),
-                              Text('Profile'),
-                            ],
-                          ),
-                        ),
-                        const PopupMenuItem(
-                          value: 'logout',
-                          child: Row(
-                            children: [
-                              Icon(Icons.logout),
-                              SizedBox(width: 8),
-                              Text('Logout'),
+                              Text('Settings'),
                             ],
                           ),
                         ),
@@ -165,13 +197,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                             Row(
                               children: [
                                 Icon(
-                                  Icons.shield_outlined,
+                                  isGuestMode ? Icons.person_outline : Icons.shield_outlined,
                                   color: Theme.of(context).colorScheme.primary,
                                   size: 24,
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  'Security Status',
+                                  isGuestMode ? 'Guest Mode' : 'Security Status',
                                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -180,11 +212,41 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'Your messages are being actively monitored for phishing attempts.',
+                              isGuestMode 
+                                ? 'You\'re using the app in guest mode. Sign in for enhanced security, personalization, and cross-device protection.'
+                                : 'Your messages are being actively monitored for phishing attempts.',
                               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: Theme.of(context).colorScheme.onBackground.withOpacity(0.7),
+                                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                               ),
                             ),
+                            if (isGuestMode) ...[
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      onPressed: () => context.go('/auth/login'),
+                                      icon: const Icon(Icons.login, size: 16),
+                                      label: const Text('Sign In'),
+                                      style: OutlinedButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(vertical: 8),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: ElevatedButton.icon(
+                                      onPressed: () => context.go('/settings'),
+                                      icon: const Icon(Icons.settings, size: 16),
+                                      label: const Text('Settings'),
+                                      style: ElevatedButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(vertical: 8),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -264,6 +326,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                               children: [
                                 Expanded(
                                   child: _QuickActionButton(
+                                    icon: Icons.analytics_outlined,
+                                    label: 'Analyze SMS',
+                                    onTap: () => context.go('/manual-analysis'),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: _QuickActionButton(
                                     icon: Icons.inbox_outlined,
                                     label: 'View Inbox',
                                     onTap: () => context.go('/inbox'),
@@ -277,13 +347,25 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                                     onTap: () => context.go('/archive'),
                                   ),
                                 ),
-                                const SizedBox(width: 12),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
                                 Expanded(
                                   child: _QuickActionButton(
                                     icon: Icons.settings_outlined,
                                     label: 'Settings',
                                     onTap: () => context.go('/settings'),
                                   ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Container(), // Empty space for alignment
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Container(), // Empty space for alignment
                                 ),
                               ],
                             ),

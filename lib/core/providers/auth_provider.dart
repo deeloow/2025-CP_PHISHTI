@@ -2,7 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../services/auth_service.dart';
-import '../../models/user.dart';
+import '../../models/user.dart' as app_user;
+// Import the specific types we need
+import '../../models/user.dart' show UserPreferences, SecuritySettings;
 
 // Auth state provider
 final authStateProvider = StreamProvider<User?>((ref) {
@@ -10,7 +12,7 @@ final authStateProvider = StreamProvider<User?>((ref) {
 });
 
 // Current app user provider
-final currentAppUserProvider = FutureProvider<AppUser?>((ref) async {
+final currentAppUserProvider = FutureProvider<app_user.AppUser?>((ref) async {
   final authState = ref.watch(authStateProvider);
   return authState.when(
     data: (user) async {

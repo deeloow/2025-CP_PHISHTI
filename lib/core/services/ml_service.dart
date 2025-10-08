@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/services.dart';
-import 'package:tflite_flutter/tflite_flutter.dart';
-import 'package:tflite_flutter_helper/tflite_flutter_helper.dart';
 import 'package:crypto/crypto.dart';
+// import 'package:tflite_flutter/tflite_flutter.dart';
+// import 'package:tflite_flutter_helper/tflite_flutter_helper.dart';
 
 import '../../models/sms_message.dart';
 import '../../models/phishing_detection.dart';
@@ -21,10 +21,16 @@ class MLService {
   
   MLService._internal();
   
-  Interpreter? _smsModel;
-  Interpreter? _urlModel;
-  Interpreter? _bertModel;
-  Interpreter? _lstmModel;
+  // Interpreter? _smsModel;
+  // Interpreter? _urlModel;
+  // Interpreter? _bertModel;
+  // Interpreter? _lstmModel;
+  
+  // Placeholder model references (since TensorFlow Lite is disabled)
+  dynamic _smsModel;
+  dynamic _urlModel;
+  dynamic _bertModel;
+  dynamic _lstmModel;
   bool _isInitialized = false;
   ModelType _currentModelType = ModelType.lstm;
   MLServiceMode _serviceMode = MLServiceMode.hybrid;
@@ -88,33 +94,20 @@ class MLService {
   
   Future<void> _initializeOfflineModels(ModelType modelType) async {
     try {
-      // Load primary SMS classification model
-      _smsModel = await _loadModel(_smsModelPath);
-      
-      // Load URL classification model
-      _urlModel = await _loadModel(_urlModelPath);
-      
-      // Load additional models based on type
-      switch (modelType) {
-        case ModelType.bert:
-          _bertModel = await _loadModel(_bertModelPath);
-          break;
-        case ModelType.lstm:
-          _lstmModel = await _loadModel(_lstmModelPath);
-          break;
-        case ModelType.ensemble:
-          _bertModel = await _loadModel(_bertModelPath);
-          _lstmModel = await _loadModel(_lstmModelPath);
-          break;
-        default:
-          break;
-      }
-      
+      // For mobile testing, skip ML model loading and use rule-based detection
+      print('Using rule-based detection for mobile testing');
       // Load vocabulary
-      await _loadVocabulary();
+      // await _loadVocabulary();
     } catch (e) {
       print('Error loading offline models: $e');
     }
+  }
+  
+  // Placeholder method for loading models (TensorFlow Lite disabled)
+  Future<dynamic> _loadModel(String modelPath) async {
+    print('Loading model from: $modelPath (placeholder implementation)');
+    // Return null since TensorFlow Lite is disabled
+    return null;
   }
   
   Future<void> switchModel(ModelType modelType) async {
@@ -142,15 +135,15 @@ class MLService {
     }
   }
   
-  Future<Interpreter> _loadModel(String modelPath) async {
-    try {
-      return await Interpreter.fromAsset(modelPath);
-    } catch (e) {
-      print('Error loading model $modelPath: $e');
-      // Return a dummy interpreter for fallback
-      return await Interpreter.fromAsset('assets/models/dummy_model.tflite');
-    }
-  }
+  // Future<Interpreter> _loadModel(String modelPath) async {
+  //   try {
+  //     return await Interpreter.fromAsset(modelPath);
+  //   } catch (e) {
+  //     print('Error loading model $modelPath: $e');
+  //     // Return a dummy interpreter for fallback
+  //     return await Interpreter.fromAsset('assets/models/dummy_model.tflite');
+  //   }
+  // }
   
   Future<void> _loadVocabulary() async {
     try {
@@ -177,18 +170,22 @@ class MLService {
     }
     
     try {
+      // Extract URLs from message first
+      final urls = extractUrls(message.body);
+      final messageWithUrls = message.copyWith(extractedUrls: urls);
+      
       // Determine which analysis method to use based on service mode and connectivity
       switch (_serviceMode) {
         case MLServiceMode.online:
-          return await _analyzeOnlineOnly(message);
+          return await _analyzeOnlineOnly(messageWithUrls);
         case MLServiceMode.offline:
-          return await _analyzeOfflineOnly(message);
+          return await _analyzeOfflineOnly(messageWithUrls);
         case MLServiceMode.hybrid:
-          return await _analyzeHybrid(message);
+          return await _analyzeHybrid(messageWithUrls);
       }
     } catch (e) {
       print('Error analyzing SMS: $e');
-      return _analyzeWithRules(message);
+      return await _analyzeWithRules(message);
     }
   }
   
@@ -210,26 +207,18 @@ class MLService {
       return await _onlineService.analyzeSms(message);
     } catch (e) {
       print('Online analysis failed: $e');
-      return _analyzeWithRules(message);
+      return await _analyzeWithRules(message);
     }
   }
   
   /// Analyze using offline models only
   Future<PhishingDetection> _analyzeOfflineOnly(SmsMessage message) async {
     try {
-      // Try ML-based detection first
-      if (_smsModel != null && _vocabLoaded) {
-        final mlResult = await _analyzeWithML(message);
-        if (mlResult != null) {
-          return mlResult;
-        }
-      }
-      
-      // Fallback to rule-based detection
-      return _analyzeWithRules(message);
+      // For mobile testing, use rule-based detection only
+      return await _analyzeWithRules(message);
     } catch (e) {
       print('Offline analysis failed: $e');
-      return _analyzeWithRules(message);
+      return await _analyzeWithRules(message);
     }
   }
   
@@ -245,14 +234,8 @@ class MLService {
           return onlineResult;
         }
         
-        // If online analysis is uncertain, combine with offline analysis
-        if (_smsModel != null && _vocabLoaded) {
-          final offlineResult = await _analyzeWithML(message);
-          if (offlineResult != null) {
-            // Combine results for better accuracy
-            return _combineResults(onlineResult, offlineResult, message);
-          }
-        }
+        // For mobile testing, skip ML combination
+        // Use online result or fallback to rules
         
         return onlineResult;
       } catch (e) {
@@ -431,7 +414,7 @@ class MLService {
     }
   }
   
-  PhishingDetection _analyzeWithRules(SmsMessage message) {
+  Future<PhishingDetection> _analyzeWithRules(SmsMessage message) async {
     final indicators = <String>[];
     double confidence = 0.0;
     PhishingType type = PhishingType.content;
@@ -452,12 +435,14 @@ class MLService {
       type = PhishingType.suspiciousKeywords;
     }
     
-    // Check for suspicious URLs
-    final urls = _extractUrls(message.body);
+    // Check for suspicious URLs with enhanced analysis
+    final urls = extractUrls(message.body);
     for (final url in urls) {
-      if (_isSuspiciousUrl(url)) {
-        indicators.add('Suspicious URL: $url');
-        confidence += 0.4;
+      final urlAnalysis = await analyzeUrl(url);
+      if (urlAnalysis['isSuspicious']) {
+        indicators.add('Suspicious URL: $url (${urlAnalysis['threatLevel']})');
+        indicators.addAll(urlAnalysis['indicators'].cast<String>());
+        confidence += urlAnalysis['confidence'] * 0.5; // Weight URL analysis
         type = PhishingType.url;
       }
     }
@@ -543,6 +528,12 @@ class MLService {
     return sequence;
   }
   
+  // Extract URLs from text
+  List<String> _extractUrls(String text) {
+    final urlRegex = RegExp(r'https?://[^\s]+');
+    return urlRegex.allMatches(text).map((match) => match.group(0)!).toList();
+  }
+  
   List<String> _extractIndicators(String text) {
     final indicators = <String>[];
     
@@ -588,20 +579,155 @@ class MLService {
     return suspiciousKeywords.where((keyword) => lowerText.contains(keyword)).toList();
   }
   
-  List<String> _extractUrls(String text) {
-    final urlRegex = RegExp(r'https?://[^\s]+');
-    return urlRegex.allMatches(text).map((match) => match.group(0)!).toList();
+  List<String> extractUrls(String text) {
+    // Enhanced URL extraction with support for various formats
+    final urlRegexes = [
+      RegExp(r'https?://[^\s]+'),
+      RegExp(r'www\.[^\s]+'),
+      RegExp(r'[a-zA-Z0-9-]+\.[a-zA-Z]{2,}[^\s]*'),
+      RegExp(r'bit\.ly/[^\s]+'),
+      RegExp(r'tinyurl\.com/[^\s]+'),
+      RegExp(r'goo\.gl/[^\s]+'),
+      RegExp(r't\.co/[^\s]+'),
+    ];
+    
+    final urls = <String>{};
+    for (final regex in urlRegexes) {
+      urls.addAll(regex.allMatches(text).map((match) => match.group(0)!));
+    }
+    
+    return urls.toList();
+  }
+
+  /// Enhanced URL analysis with multiple threat indicators
+  Future<Map<String, dynamic>> analyzeUrl(String url) async {
+    final analysis = {
+      'url': url,
+      'isSuspicious': false,
+      'threatLevel': 'safe',
+      'indicators': <String>[],
+      'confidence': 0.0,
+    };
+    
+    double suspicionScore = 0.0;
+    final indicators = <String>[];
+    
+    // Check for URL shorteners
+    if (_isUrlShortener(url)) {
+      indicators.add('URL shortener detected');
+      suspicionScore += 0.4;
+    }
+    
+    // Check for suspicious domains
+    if (_isSuspiciousDomain(url)) {
+      indicators.add('Suspicious domain pattern');
+      suspicionScore += 0.5;
+    }
+    
+    // Check for phishing keywords in URL
+    if (_hasPhishingKeywordsInUrl(url)) {
+      indicators.add('Phishing keywords in URL');
+      suspicionScore += 0.6;
+    }
+    
+    // Check for homograph attacks
+    if (_hasHomographAttack(url)) {
+      indicators.add('Potential homograph attack');
+      suspicionScore += 0.7;
+    }
+    
+    // Check for suspicious TLD
+    if (_hasSuspiciousTLD(url)) {
+      indicators.add('Suspicious top-level domain');
+      suspicionScore += 0.3;
+    }
+    
+    // Check for excessive subdomains
+    if (_hasExcessiveSubdomains(url)) {
+      indicators.add('Excessive subdomains');
+      suspicionScore += 0.3;
+    }
+    
+    // Check for IP address instead of domain
+    if (_isIpAddress(url)) {
+      indicators.add('IP address instead of domain');
+      suspicionScore += 0.5;
+    }
+    
+    analysis['indicators'] = indicators;
+    analysis['confidence'] = suspicionScore;
+    analysis['isSuspicious'] = suspicionScore > 0.5;
+    
+    if (suspicionScore > 0.8) {
+      analysis['threatLevel'] = 'high';
+    } else if (suspicionScore > 0.5) {
+      analysis['threatLevel'] = 'medium';
+    } else if (suspicionScore > 0.2) {
+      analysis['threatLevel'] = 'low';
+    }
+    
+    return analysis;
+  }
+
+  bool _isSuspiciousUrl(String url) {
+    // Legacy method - now uses the enhanced analysis
+    return _isUrlShortener(url) || _isSuspiciousDomain(url) || _hasPhishingKeywordsInUrl(url);
   }
   
-  bool _isSuspiciousUrl(String url) {
-    // Check for suspicious domains
-    final suspiciousDomains = [
-      'bit.ly', 'tinyurl.com', 'goo.gl', 't.co',
-      'shortened-url', 'suspicious-domain'
+  bool _isUrlShortener(String url) {
+    final shorteners = [
+      'bit.ly', 'tinyurl.com', 'goo.gl', 't.co', 'short.link',
+      'ow.ly', 'buff.ly', 'adf.ly', 'tiny.cc', 'is.gd',
+      'v.gd', 'tr.im', 'url.ie', 'miniurl.com', 'x.co'
     ];
     
     final lowerUrl = url.toLowerCase();
-    return suspiciousDomains.any((domain) => lowerUrl.contains(domain));
+    return shorteners.any((shortener) => lowerUrl.contains(shortener));
+  }
+  
+  bool _isSuspiciousDomain(String url) {
+    final suspiciousPatterns = [
+      RegExp(r'[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}'), // IP addresses
+      RegExp(r'[a-z0-9]{20,}'), // Very long random strings
+      RegExp(r'.*-.*-.*-.*'), // Multiple hyphens
+      RegExp(r'.*\d{4,}.*'), // Long number sequences
+    ];
+    
+    return suspiciousPatterns.any((pattern) => pattern.hasMatch(url.toLowerCase()));
+  }
+  
+  bool _hasPhishingKeywordsInUrl(String url) {
+    final phishingKeywords = [
+      'paypal', 'amazon', 'apple', 'microsoft', 'google', 'facebook',
+      'bank', 'secure', 'verify', 'update', 'confirm', 'login',
+      'account', 'suspended', 'limited', 'urgent', 'click'
+    ];
+    
+    final lowerUrl = url.toLowerCase();
+    return phishingKeywords.any((keyword) => lowerUrl.contains(keyword));
+  }
+  
+  bool _hasHomographAttack(String url) {
+    // Check for common homograph characters
+    final homographs = ['а', 'е', 'о', 'р', 'с', 'х', 'у']; // Cyrillic lookalikes
+    return homographs.any((char) => url.contains(char));
+  }
+  
+  bool _hasSuspiciousTLD(String url) {
+    final suspiciousTlds = ['.tk', '.ml', '.ga', '.cf', '.top', '.click', '.download'];
+    final lowerUrl = url.toLowerCase();
+    return suspiciousTlds.any((tld) => lowerUrl.endsWith(tld));
+  }
+  
+  bool _hasExcessiveSubdomains(String url) {
+    final domainPart = url.replaceAll(RegExp(r'https?://'), '').split('/')[0];
+    final subdomains = domainPart.split('.');
+    return subdomains.length > 4; // More than 3 subdomains is suspicious
+  }
+  
+  bool _isIpAddress(String url) {
+    final ipPattern = RegExp(r'[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}');
+    return ipPattern.hasMatch(url);
   }
   
   bool _isSuspiciousSender(String sender) {

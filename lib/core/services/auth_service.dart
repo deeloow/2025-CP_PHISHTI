@@ -1,8 +1,11 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../models/user.dart';
+import '../../models/user.dart' as app_user;
+// Import the specific types we need
+import '../../models/user.dart' show UserPreferences, SecuritySettings;
 
 class AuthService {
   static final AuthService _instance = AuthService._internal();
@@ -17,6 +20,31 @@ class AuthService {
   User? get currentUser => _auth.currentUser;
   Stream<User?> get authStateChanges => _auth.authStateChanges();
   
+  // Guest mode functionality
+  bool _isGuestMode = false;
+  bool get isGuestMode => _isGuestMode;
+  
+  Future<void> enableGuestMode() async {
+    _isGuestMode = true;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('guest_mode', true);
+  }
+  
+  Future<void> disableGuestMode() async {
+    _isGuestMode = false;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('guest_mode', false);
+  }
+  
+  Future<bool> isGuestModeEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('guest_mode') ?? false;
+  }
+  
+  Future<void> initializeGuestMode() async {
+    _isGuestMode = await isGuestModeEnabled();
+  }
+  
   Future<AuthResult> signInWithEmailAndPassword({
     required String email,
     required String password,
@@ -29,6 +57,7 @@ class AuthService {
       
       if (credential.user != null) {
         await _updateLastLogin(credential.user!.uid);
+        await disableGuestMode(); // Disable guest mode when user signs in
         return AuthResult.success(credential.user!);
       } else {
         return AuthResult.failure('Sign in failed');
@@ -57,6 +86,7 @@ class AuthService {
         
         // Create user document in Firestore
         await _createUserDocument(credential.user!);
+        await disableGuestMode(); // Disable guest mode when user signs up
         
         return AuthResult.success(credential.user!);
       } else {
@@ -71,29 +101,47 @@ class AuthService {
   
   Future<AuthResult> signInWithGoogle() async {
     try {
+      // Check if Google Sign-In is available
+      final isAvailable = await _googleSignIn.isSignedIn();
+      print('Google Sign-In available: $isAvailable');
+      
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) {
-        return AuthResult.failure('Google sign in cancelled');
+        return AuthResult.failure('Google sign in cancelled by user');
       }
       
+      print('Google user: ${googleUser.email}');
+      
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      
+      if (googleAuth.accessToken == null || googleAuth.idToken == null) {
+        return AuthResult.failure('Failed to get Google authentication tokens');
+      }
+      
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
       
+      print('Attempting Firebase authentication...');
       final userCredential = await _auth.signInWithCredential(credential);
       
       if (userCredential.user != null) {
+        print('Google Sign-In successful: ${userCredential.user!.email}');
         // Check if user document exists, create if not
         await _createUserDocumentIfNotExists(userCredential.user!);
         await _updateLastLogin(userCredential.user!.uid);
+        await disableGuestMode(); // Disable guest mode when user signs in with Google
         
         return AuthResult.success(userCredential.user!);
       } else {
-        return AuthResult.failure('Google sign in failed');
+        return AuthResult.failure('Google sign in failed - no user returned');
       }
+    } on FirebaseAuthException catch (e) {
+      print('Firebase Auth Error: ${e.code} - ${e.message}');
+      return AuthResult.failure('Firebase authentication failed: ${e.message}');
     } catch (e) {
+      print('Google Sign-In Error: $e');
       return AuthResult.failure('Google sign in error: $e');
     }
   }
@@ -102,6 +150,8 @@ class AuthService {
     try {
       await _auth.signOut();
       await _googleSignIn.signOut();
+      // Don't automatically enable guest mode on sign out
+      // Let user choose whether to continue as guest or sign in again
     } catch (e) {
       print('Error signing out: $e');
     }
@@ -115,14 +165,14 @@ class AuthService {
     }
   }
   
-  Future<AppUser?> getCurrentAppUser() async {
+  Future<app_user.AppUser?> getCurrentAppUser() async {
     final user = currentUser;
     if (user == null) return null;
     
     try {
       final doc = await _firestore.collection('users').doc(user.uid).get();
       if (doc.exists) {
-        return AppUser.fromJson(doc.data()!);
+        return app_user.AppUser.fromJson(doc.data()!);
       }
     } catch (e) {
       print('Error getting current app user: $e');
@@ -186,15 +236,15 @@ class AuthService {
   }
   
   Future<void> _createUserDocument(User user) async {
-    final appUser = AppUser(
+    final appUser = app_user.AppUser(
       id: user.uid,
-      email: user.email!,
+      email: user.email ?? '',
       displayName: user.displayName,
       photoUrl: user.photoURL,
       createdAt: DateTime.now(),
       lastLoginAt: DateTime.now(),
-      preferences: const UserPreferences(),
-      securitySettings: const SecuritySettings(),
+      preferences: UserPreferences(),
+      securitySettings: SecuritySettings(),
     );
     
     await _firestore.collection('users').doc(user.uid).set(appUser.toJson());

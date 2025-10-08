@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/providers/auth_provider.dart';
+import '../../core/services/auth_service.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -58,14 +59,70 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
             if (user != null) {
               context.go('/dashboard');
             } else {
-              context.go('/auth/login');
+              // Show login options instead of automatically redirecting
+              _showLoginOptions();
             }
           },
-          loading: () => context.go('/auth/login'),
-          error: (_, __) => context.go('/auth/login'),
+          loading: () => _showLoginOptions(),
+          error: (_, __) => _showLoginOptions(),
         );
       }
     });
+  }
+
+  void _showLoginOptions() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(
+              Icons.security,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(width: 8),
+            const Text('Welcome to Phishti Detector'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Choose how you\'d like to use the app:',
+              style: TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              '🔐 Sign in for enhanced security, personalization, and cross-device protection',
+              style: TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '🚀 Continue as guest to start detecting phishing SMS immediately',
+              style: TextStyle(fontSize: 14),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              await AuthService.instance.enableGuestMode();
+              context.go('/dashboard'); // Continue as guest
+            },
+            child: const Text('Continue as Guest'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              context.go('/auth/login');
+            },
+            child: const Text('Sign In'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -77,7 +134,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.background,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: Center(
         child: AnimatedBuilder(
           animation: _animationController,
@@ -135,7 +192,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                     Text(
                       'AI-Powered SMS Phishing Protection',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onBackground.withOpacity(0.7),
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                       ),
                     ),
                     
@@ -159,7 +216,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                     Text(
                       'Initializing Security...',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onBackground.withOpacity(0.6),
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                       ),
                     ),
                   ],

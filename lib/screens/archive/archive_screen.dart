@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers/sms_provider.dart';
 import '../../models/sms_message.dart';
-import '../widgets/sms_message_tile.dart';
 
 class ArchiveScreen extends ConsumerStatefulWidget {
   const ArchiveScreen({super.key});
@@ -28,7 +27,7 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
     final archivedMessages = ref.watch(archivedMessagesProvider);
 
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.background,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: CustomScrollView(
         slivers: [
           // App Bar
@@ -36,13 +35,13 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
             expandedHeight: 120,
             floating: false,
             pinned: true,
-            backgroundColor: Theme.of(context).colorScheme.background,
+            backgroundColor: Theme.of(context).colorScheme.surface,
             flexibleSpace: FlexibleSpaceBar(
               title: Text(
                 'Phishing Archive',
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.onBackground,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
               background: Container(
@@ -231,7 +230,7 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
           Text(
             'Great! No phishing attempts have been detected recently.',
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: Theme.of(context).colorScheme.onBackground.withOpacity(0.7),
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
             ),
             textAlign: TextAlign.center,
           ),
@@ -252,7 +251,7 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
           Text(
             'Loading archived messages...',
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: Theme.of(context).colorScheme.onBackground.withOpacity(0.7),
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
             ),
           ),
         ],
