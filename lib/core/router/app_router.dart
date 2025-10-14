@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
 import '../../screens/auth/login_screen.dart';
 import '../../screens/auth/register_screen.dart';
+import '../../screens/auth/email_verification_screen.dart';
 import '../../screens/dashboard/dashboard_screen.dart';
 import '../../screens/inbox/inbox_screen.dart';
 import '../../screens/archive/archive_screen.dart';
@@ -57,6 +58,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/auth/register',
         builder: (context, state) => const RegisterScreen(),
+      ),
+      GoRoute(
+        path: '/auth/verify',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          return EmailVerificationScreen(
+            email: extra?['email'] ?? '',
+            displayName: extra?['displayName'] ?? '',
+          );
+        },
       ),
       
       // Main App Routes

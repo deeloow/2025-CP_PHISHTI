@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:device_info_plus/device_info_plus.dart';
@@ -10,16 +10,32 @@ class DeviceOptimizer {
   static bool isLowEndDevice = false;
   
   static Future<void> initialize() async {
-    if (Platform.isAndroid) {
-      AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
-      deviceManufacturer = androidInfo.manufacturer.toLowerCase();
-      deviceModel = androidInfo.model.toLowerCase();
-      
-      // Detect low-end devices
-      isLowEndDevice = _isLowEndDevice(androidInfo);
-      
-      // Apply manufacturer-specific optimizations
-      await _applyManufacturerOptimizations();
+    if (kIsWeb) {
+      // Web: use default settings
+      deviceManufacturer = 'web';
+      deviceModel = 'browser';
+      isLowEndDevice = false;
+      return;
+    }
+    
+    try {
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
+        deviceManufacturer = androidInfo.manufacturer.toLowerCase();
+        deviceModel = androidInfo.model.toLowerCase();
+        
+        // Detect low-end devices
+        isLowEndDevice = _isLowEndDevice(androidInfo);
+        
+        // Apply manufacturer-specific optimizations
+        await _applyManufacturerOptimizations();
+      }
+    } catch (e) {
+      print('Error initializing device optimizer: $e');
+      // Fallback to default settings
+      deviceManufacturer = 'unknown';
+      deviceModel = 'unknown';
+      isLowEndDevice = false;
     }
   }
   

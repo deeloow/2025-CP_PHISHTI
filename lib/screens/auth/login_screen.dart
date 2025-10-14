@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/providers/auth_provider.dart';
-import '../../core/services/fallback_auth_service.dart';
+import '../../core/services/php_auth_service.dart';
 import '../../core/services/biometric_service.dart';
 import 'register_screen.dart';
 
@@ -21,6 +20,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _obscurePassword = true;
   bool _isBiometricAvailable = false;
   bool _isBiometricEnabled = false;
+  bool _isLoading = false;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -69,8 +70,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final loginState = ref.watch(loginProvider);
-    final googleSignInState = ref.watch(googleSignInProvider);
 
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -197,8 +196,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 
                 // Login Button
                 ElevatedButton(
-                  onPressed: loginState.isLoading ? null : _handleLogin,
-                  child: loginState.isLoading
+                  onPressed: _isLoading ? null : _handleLogin,
+                  child: _isLoading
                       ? const SizedBox(
                           width: 20,
                           height: 20,
@@ -229,43 +228,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 TextButton(
                   onPressed: _handleForgotPassword,
                   child: const Text('Forgot Password?'),
-                ),
-                
-                const SizedBox(height: 32),
-                
-                // Divider
-                Row(
-                  children: [
-                    const Expanded(child: Divider()),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text(
-                        'OR',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
-                        ),
-                      ),
-                    ),
-                    const Expanded(child: Divider()),
-                  ],
-                ),
-                
-                const SizedBox(height: 32),
-                
-                // Google Sign In Button
-                OutlinedButton.icon(
-                  onPressed: googleSignInState.isLoading ? null : _handleGoogleSignIn,
-                  icon: googleSignInState.isLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.g_mobiledata, size: 24),
-                  label: const Text('Continue with Google'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
                 ),
                 
                 const SizedBox(height: 32),
@@ -302,8 +264,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 
                 const SizedBox(height: 24),
                 
-                // Error Message for Login
-                if (loginState.errorMessage != null)
+                // Error Message
+                if (_errorMessage != null)
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -323,38 +285,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            loginState.errorMessage!,
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context).colorScheme.error,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                
-                // Error Message for Google Sign-In
-                if (googleSignInState.errorMessage != null)
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.error.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: Theme.of(context).colorScheme.error.withOpacity(0.3),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.error_outline,
-                          color: Theme.of(context).colorScheme.error,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            googleSignInState.errorMessage!,
+                            _errorMessage!,
                             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               color: Theme.of(context).colorScheme.error,
                             ),
@@ -371,21 +302,37 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  void _handleLogin() {
+  void _handleLogin() async {
     if (_formKey.currentState!.validate()) {
-      ref.read(loginProvider.notifier).signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-      );
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+      
+      try {
+        final result = await PhpAuthService.instance.login(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+        );
+        
+        if (result.isSuccess) {
+          // Navigate to dashboard
+          context.go('/dashboard');
+        } else {
+          setState(() {
+            _errorMessage = result.errorMessage ?? 'Login failed';
+          });
+        }
+      } catch (e) {
+        setState(() {
+          _errorMessage = 'An error occurred: $e';
+        });
+      } finally {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
-  }
-
-  void _handleGoogleSignIn() {
-    // Show Firebase configuration warning
-    showFirebaseConfigWarning(context);
-    
-    // Still try Google Sign-In in case Firebase is configured
-    ref.read(googleSignInProvider.notifier).signInWithGoogle();
   }
 
   void _handleForgotPassword() {

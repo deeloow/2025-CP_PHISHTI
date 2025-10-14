@@ -20,6 +20,13 @@ class SmsMessage {
   final bool isRead; // Whether the message has been read
   final MessageType messageType; // SMS or MMS
   final String? contactName; // Contact name if available
+  
+  // User Analysis/Classification fields
+  final UserClassification? userClassification; // User's manual classification
+  final DateTime? analyzedAt; // When user analyzed the message
+  final String? userNotes; // User's notes about the message
+  final bool needsUserReview; // Whether message needs user analysis
+  final List<String> userTags; // User-defined tags for categorization
 
   const SmsMessage({
     required this.id,
@@ -38,6 +45,11 @@ class SmsMessage {
     this.isRead = false,
     this.messageType = MessageType.sms,
     this.contactName,
+    this.userClassification,
+    this.analyzedAt,
+    this.userNotes,
+    this.needsUserReview = false,
+    this.userTags = const [],
   });
 
   factory SmsMessage.fromJson(Map<String, dynamic> json) =>
@@ -62,6 +74,11 @@ class SmsMessage {
     bool? isRead,
     MessageType? messageType,
     String? contactName,
+    UserClassification? userClassification,
+    DateTime? analyzedAt,
+    String? userNotes,
+    bool? needsUserReview,
+    List<String>? userTags,
   }) {
     return SmsMessage(
       id: id ?? this.id,
@@ -80,6 +97,11 @@ class SmsMessage {
       isRead: isRead ?? this.isRead,
       messageType: messageType ?? this.messageType,
       contactName: contactName ?? this.contactName,
+      userClassification: userClassification ?? this.userClassification,
+      analyzedAt: analyzedAt ?? this.analyzedAt,
+      userNotes: userNotes ?? this.userNotes,
+      needsUserReview: needsUserReview ?? this.needsUserReview,
+      userTags: userTags ?? this.userTags,
     );
   }
 
@@ -94,7 +116,7 @@ class SmsMessage {
 
   @override
   String toString() {
-    return 'SmsMessage(id: $id, sender: $sender, body: $body, isPhishing: $isPhishing)';
+    return 'SmsMessage(id: $id, sender: $sender, body: $body, isPhishing: $isPhishing, userClassification: $userClassification)';
   }
 }
 
@@ -102,4 +124,13 @@ class SmsMessage {
 enum MessageType {
   sms,
   mms,
+}
+
+/// User classification enum for manual message analysis
+enum UserClassification {
+  legitimate,    // User confirmed as legitimate
+  phishing,      // User confirmed as phishing
+  suspicious,    // User marked as suspicious but not confirmed phishing
+  spam,          // User marked as spam
+  unknown,       // User marked as unknown/needs more analysis
 }

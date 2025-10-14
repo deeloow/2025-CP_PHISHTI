@@ -180,20 +180,10 @@ class SmsMessageTile extends StatelessWidget {
   }
 
   Widget _buildMessageBody(BuildContext context) {
-    if (message.extractedUrls.isEmpty) {
-      return Text(
-        message.body,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
-        ),
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-      );
-    }
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Message content
         Text(
           message.body,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -202,12 +192,247 @@ class SmsMessageTile extends StatelessWidget {
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
         ),
+        
+        // Analysis section
+        const SizedBox(height: 8),
+        _buildAnalysisSection(context),
+        
+        // URLs if any
         if (message.extractedUrls.isNotEmpty) ...[
           const SizedBox(height: 8),
           ...message.extractedUrls.map((url) => _buildUrlChip(context, url)),
         ],
       ],
     );
+  }
+
+  Widget _buildAnalysisSection(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.analytics_outlined,
+                size: 16,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'Message Analysis',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          
+          // User classification status
+          if (message.userClassification != null) ...[
+            _buildClassificationChip(context, message.userClassification!),
+            const SizedBox(height: 4),
+          ],
+          
+          // Analysis actions
+          if (message.userClassification == null) ...[
+            Text(
+              'Classify this message:',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+              ),
+            ),
+            const SizedBox(height: 8),
+            _buildClassificationButtons(context),
+          ] else ...[
+            // Show analysis details
+            _buildAnalysisDetails(context),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildClassificationChip(BuildContext context, UserClassification classification) {
+    Color color;
+    String label;
+    IconData icon;
+    
+    switch (classification) {
+      case UserClassification.legitimate:
+        color = Colors.green;
+        label = 'Legitimate';
+        icon = Icons.check_circle;
+        break;
+      case UserClassification.phishing:
+        color = Colors.red;
+        label = 'Phishing';
+        icon = Icons.warning;
+        break;
+      case UserClassification.suspicious:
+        color = Colors.orange;
+        label = 'Suspicious';
+        icon = Icons.help;
+        break;
+      case UserClassification.spam:
+        color = Colors.purple;
+        label = 'Spam';
+        icon = Icons.block;
+        break;
+      case UserClassification.unknown:
+        color = Colors.grey;
+        label = 'Unknown';
+        icon = Icons.help_outline;
+        break;
+    }
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildClassificationButtons(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 4,
+      children: [
+        _buildClassificationButton(
+          context,
+          'Legitimate',
+          UserClassification.legitimate,
+          Colors.green,
+          Icons.check_circle,
+        ),
+        _buildClassificationButton(
+          context,
+          'Phishing',
+          UserClassification.phishing,
+          Colors.red,
+          Icons.warning,
+        ),
+        _buildClassificationButton(
+          context,
+          'Suspicious',
+          UserClassification.suspicious,
+          Colors.orange,
+          Icons.help,
+        ),
+        _buildClassificationButton(
+          context,
+          'Spam',
+          UserClassification.spam,
+          Colors.purple,
+          Icons.block,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildClassificationButton(
+    BuildContext context,
+    String label,
+    UserClassification classification,
+    Color color,
+    IconData icon,
+  ) {
+    return InkWell(
+      onTap: () => _classifyMessage(context, classification),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withOpacity(0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAnalysisDetails(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (message.userNotes != null) ...[
+          Text(
+            'Notes: ${message.userNotes}',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+            ),
+          ),
+          const SizedBox(height: 4),
+        ],
+        if (message.userTags.isNotEmpty) ...[
+          Wrap(
+            spacing: 4,
+            children: message.userTags.map((tag) => Chip(
+              label: Text(tag, style: const TextStyle(fontSize: 10)),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            )).toList(),
+          ),
+        ],
+        if (message.analyzedAt != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Analyzed: ${_formatTime(message.analyzedAt!)}',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  void _classifyMessage(BuildContext context, UserClassification classification) {
+    // TODO: Implement message classification logic
+    // This would typically update the message in the database
+    _showSnackBar(context, 'Message classified as: ${classification.name}');
   }
 
   Widget _buildUrlChip(BuildContext context, String url) {

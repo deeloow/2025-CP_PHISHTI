@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/providers/auth_provider.dart';
-import '../../core/services/fallback_auth_service.dart';
+import '../../core/services/php_auth_service.dart';
+import 'email_verification_screen.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -21,6 +21,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _agreeToTerms = false;
+  bool _isLoading = false;
+  String? _errorMessage;
+  String? _successMessage;
 
   @override
   void initState() {
@@ -39,23 +42,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final registerState = ref.watch(registerProvider);
-    final googleSignInState = ref.watch(googleSignInProvider);
-    
-    // Handle successful registration
-    ref.listen<RegisterState>(registerProvider, (previous, next) {
-      if (next.isSuccess) {
-        print('Registration successful!');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Account created successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        // Navigate to dashboard
-        context.go('/dashboard');
-      }
-    });
 
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -284,8 +270,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 
                 // Register Button
                 ElevatedButton(
-                  onPressed: (registerState.isLoading || !_agreeToTerms) ? null : _handleRegister,
-                  child: registerState.isLoading
+                  onPressed: (_isLoading || !_agreeToTerms) ? null : _handleRegister,
+                  child: _isLoading
                       ? const SizedBox(
                           width: 20,
                           height: 20,
@@ -295,43 +281,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           ),
                         )
                       : const Text('Create Account'),
-                ),
-                
-                const SizedBox(height: 32),
-                
-                // Divider
-                Row(
-                  children: [
-                    const Expanded(child: Divider()),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text(
-                        'OR',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
-                        ),
-                      ),
-                    ),
-                    const Expanded(child: Divider()),
-                  ],
-                ),
-                
-                const SizedBox(height: 32),
-                
-                // Google Sign In Button
-                OutlinedButton.icon(
-                  onPressed: googleSignInState.isLoading ? null : _handleGoogleSignIn,
-                  icon: googleSignInState.isLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.g_mobiledata, size: 24),
-                  label: const Text('Continue with Google'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
                 ),
                 
                 const SizedBox(height: 32),
@@ -356,7 +305,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 const SizedBox(height: 24),
                 
                 // Error Message
-                if (registerState.errorMessage != null)
+                if (_errorMessage != null)
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -376,7 +325,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            registerState.errorMessage!,
+                            _errorMessage!,
                             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               color: Theme.of(context).colorScheme.error,
                             ),
@@ -387,7 +336,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   ),
                 
                 // Success Message
-                if (registerState.isSuccess)
+                if (_successMessage != null)
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -407,7 +356,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Account created successfully!',
+                            _successMessage!,
                             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               color: Colors.green,
                             ),
@@ -425,78 +374,47 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   }
 
   void _handleRegister() async {
-    print('Register button clicked');
     if (_formKey.currentState!.validate()) {
-      print('Form validation passed');
-      print('Email: ${_emailController.text.trim()}');
-      print('Name: ${_nameController.text.trim()}');
-      print('Password length: ${_passwordController.text.length}');
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+        _successMessage = null;
+      });
       
       try {
-        // Try Firebase registration first
-        ref.read(registerProvider.notifier).signUpWithEmailAndPassword(
+        final result = await PhpAuthService.instance.register(
           email: _emailController.text.trim(),
           password: _passwordController.text,
           displayName: _nameController.text.trim(),
         );
         
-        // Wait a bit to see if Firebase registration works
-        await Future.delayed(const Duration(seconds: 2));
-        
-        // If Firebase fails, try fallback registration
-        final registerState = ref.read(registerProvider);
-        if (registerState.errorMessage != null) {
-          print('Firebase registration failed, trying fallback...');
-          await _handleFallbackRegistration();
+        if (result.isSuccess) {
+          setState(() {
+            _successMessage = result.message ?? 'Registration successful!';
+          });
+          
+          // Navigate to email verification screen
+          await Future.delayed(const Duration(seconds: 1));
+          if (mounted) {
+            context.push('/auth/verify', extra: {
+              'email': _emailController.text.trim(),
+              'displayName': _nameController.text.trim(),
+            });
+          }
+        } else {
+          setState(() {
+            _errorMessage = result.errorMessage ?? 'Registration failed';
+          });
         }
       } catch (e) {
-        print('Firebase registration error: $e');
-        await _handleFallbackRegistration();
+        setState(() {
+          _errorMessage = 'An error occurred: $e';
+        });
+      } finally {
+        setState(() {
+          _isLoading = false;
+        });
       }
-    } else {
-      print('Form validation failed');
     }
-  }
-  
-  Future<void> _handleFallbackRegistration() async {
-    try {
-      final result = await FallbackAuthService.instance.signUpWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-        displayName: _nameController.text.trim(),
-      );
-      
-      if (result.isSuccess) {
-        print('Fallback registration successful!');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Account created successfully (offline mode)!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        // Navigate to dashboard
-        context.go('/dashboard');
-      } else {
-        print('Fallback registration failed: ${result.errorMessage}');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Registration failed: ${result.errorMessage}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
-      print('Fallback registration error: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Registration failed: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  void _handleGoogleSignIn() {
-    ref.read(googleSignInProvider.notifier).signInWithGoogle();
   }
 }

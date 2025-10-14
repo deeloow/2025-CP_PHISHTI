@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:crypto/crypto.dart';
-import 'package:encrypt/encrypt.dart';
+import 'package:encrypt/encrypt.dart' as encrypt;
 import 'package:uuid/uuid.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../models/sms_message.dart';
 import '../../models/phishing_detection.dart';
@@ -18,22 +20,36 @@ class DatabaseService implements DatabaseServiceInterface {
   DatabaseService._internal();
   
   Database? _database;
-  late Encrypter _encrypter;
-  late Key _key;
+  late encrypt.Encrypter _encrypter;
+  late encrypt.Key _key;
+  SharedPreferences? _prefs;
   
   Future<void> initialize() async {
-    final key = await _getOrCreateEncryptionKey();
-    _key = Key(Uint8List.fromList(key.codeUnits));
-    _encrypter = Encrypter(AES(_key));
+    if (kIsWeb) {
+      // Web: use SharedPreferences as fallback
+      _prefs = await SharedPreferences.getInstance();
+      print('Database Service initialized (web mode with SharedPreferences)');
+      return;
+    }
     
-    final databasePath = await getDatabasesPath();
-    final path = join(databasePath, 'phishti_detector.db');
-    
-    _database = await openDatabase(
-      path,
-      version: 1,
-      onCreate: _onCreate,
-    );
+    try {
+      final key = await _getOrCreateEncryptionKey();
+      _key = encrypt.Key(Uint8List.fromList(key.codeUnits));
+      _encrypter = encrypt.Encrypter(encrypt.AES(_key));
+      
+      final databasePath = await getDatabasesPath();
+      final path = join(databasePath, 'phishti_detector.db');
+      
+      _database = await openDatabase(
+        path,
+        version: 1,
+        onCreate: _onCreate,
+      );
+    } catch (e) {
+      print('Error initializing database: $e');
+      // Fallback to SharedPreferences
+      _prefs = await SharedPreferences.getInstance();
+    }
   }
   
   Future<String> _getOrCreateEncryptionKey() async {
@@ -172,6 +188,15 @@ class DatabaseService implements DatabaseServiceInterface {
   
   // SMS Messages operations
   Future<void> insertSmsMessage(SmsMessage message) async {
+    if (kIsWeb) {
+      // Web: store in SharedPreferences as JSON
+      final messages = await getSmsMessages();
+      messages.add(message);
+      final messagesJson = messages.map((m) => m.toJson()).toList();
+      await _prefs!.setString('sms_messages', jsonEncode(messagesJson));
+      return;
+    }
+    
     final db = _database!;
     await db.insert(
       'sms_messages',
@@ -186,6 +211,36 @@ class DatabaseService implements DatabaseServiceInterface {
     int? limit,
     int? offset,
   }) async {
+    if (kIsWeb) {
+      // Web: get from SharedPreferences
+      final messagesJson = _prefs!.getString('sms_messages');
+      if (messagesJson == null) return [];
+      
+      final List<dynamic> messagesList = jsonDecode(messagesJson);
+      List<SmsMessage> messages = messagesList.map((json) => SmsMessage.fromJson(json)).toList();
+      
+      // Apply filters
+      if (isPhishing != null) {
+        messages = messages.where((m) => m.isPhishing == isPhishing).toList();
+      }
+      if (isArchived != null) {
+        messages = messages.where((m) => m.isArchived == isArchived).toList();
+      }
+      
+      // Sort by timestamp
+      messages.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      
+      // Apply limit and offset
+      if (offset != null && offset > 0) {
+        messages = messages.skip(offset).toList();
+      }
+      if (limit != null && limit > 0) {
+        messages = messages.take(limit).toList();
+      }
+      
+      return messages;
+    }
+    
     final db = _database!;
     
     String whereClause = '1=1';
@@ -214,6 +269,15 @@ class DatabaseService implements DatabaseServiceInterface {
   }
   
   Future<SmsMessage?> getSmsMessageById(String id) async {
+    if (kIsWeb) {
+      final messages = await getSmsMessages();
+      try {
+        return messages.firstWhere((m) => m.id == id);
+      } catch (e) {
+        return null;
+      }
+    }
+    
     final db = _database!;
     final results = await db.query(
       'sms_messages',
@@ -227,6 +291,17 @@ class DatabaseService implements DatabaseServiceInterface {
   }
   
   Future<void> updateSmsMessage(SmsMessage message) async {
+    if (kIsWeb) {
+      final messages = await getSmsMessages();
+      final index = messages.indexWhere((m) => m.id == message.id);
+      if (index != -1) {
+        messages[index] = message;
+        final messagesJson = messages.map((m) => m.toJson()).toList();
+        await _prefs!.setString('sms_messages', jsonEncode(messagesJson));
+      }
+      return;
+    }
+    
     final db = _database!;
     await db.update(
       'sms_messages',
@@ -237,6 +312,14 @@ class DatabaseService implements DatabaseServiceInterface {
   }
   
   Future<void> deleteSmsMessage(String id) async {
+    if (kIsWeb) {
+      final messages = await getSmsMessages();
+      messages.removeWhere((m) => m.id == id);
+      final messagesJson = messages.map((m) => m.toJson()).toList();
+      await _prefs!.setString('sms_messages', jsonEncode(messagesJson));
+      return;
+    }
+    
     final db = _database!;
     await db.delete(
       'sms_messages',
@@ -351,6 +434,19 @@ class DatabaseService implements DatabaseServiceInterface {
   
   // Statistics
   Future<Map<String, int>> getStatistics() async {
+    if (kIsWeb) {
+      final messages = await getSmsMessages();
+      final now = DateTime.now();
+      final weekAgo = now.subtract(const Duration(days: 7));
+      
+      return {
+        'totalMessages': messages.length,
+        'phishingMessages': messages.where((m) => m.isPhishing).length,
+        'archivedMessages': messages.where((m) => m.isArchived).length,
+        'weeklyDetections': messages.where((m) => m.isPhishing && m.timestamp.isAfter(weekAgo)).length,
+      };
+    }
+    
     final db = _database!;
     
     final totalMessages = await db.rawQuery('SELECT COUNT(*) as count FROM sms_messages');
@@ -371,14 +467,16 @@ class DatabaseService implements DatabaseServiceInterface {
   
   // Encryption/Decryption helpers
   SmsMessage _encryptSmsMessage(SmsMessage message) {
-    final encryptedBody = _encrypter.encrypt(message.body, iv: IV.fromLength(16));
+    if (kIsWeb) return message; // Skip encryption on web
+    final encryptedBody = _encrypter.encrypt(message.body, iv: encrypt.IV.fromLength(16));
     return message.copyWith(body: encryptedBody.base64);
   }
   
   SmsMessage _decryptSmsMessage(SmsMessage message) {
+    if (kIsWeb) return message; // Skip decryption on web
     try {
-      final encrypted = Encrypted.fromBase64(message.body);
-      final decrypted = _encrypter.decrypt(encrypted, iv: IV.fromLength(16));
+      final encrypted = encrypt.Encrypted.fromBase64(message.body);
+      final decrypted = _encrypter.decrypt(encrypted, iv: encrypt.IV.fromLength(16));
       return message.copyWith(body: decrypted);
     } catch (e) {
       // If decryption fails, return the original message
@@ -388,6 +486,19 @@ class DatabaseService implements DatabaseServiceInterface {
   
   // Blocked senders operations
   Future<void> blockSender(String sender, {String? reason, bool autoBlocked = false}) async {
+    if (kIsWeb) {
+      final blockedSenders = await getBlockedSenders();
+      blockedSenders.add({
+        'id': Uuid().v4(),
+        'sender': sender,
+        'reason': reason,
+        'auto_blocked': autoBlocked,
+        'blocked_at': DateTime.now().millisecondsSinceEpoch,
+      });
+      await _prefs!.setString('blocked_senders', jsonEncode(blockedSenders));
+      return;
+    }
+    
     final db = _database!;
     await db.insert(
       'blocked_senders',
@@ -403,6 +514,11 @@ class DatabaseService implements DatabaseServiceInterface {
   }
   
   Future<bool> isSenderBlocked(String sender) async {
+    if (kIsWeb) {
+      final blockedSenders = await getBlockedSenders();
+      return blockedSenders.any((blocked) => blocked['sender'] == sender);
+    }
+    
     final db = _database!;
     final result = await db.query(
       'blocked_senders',
@@ -423,6 +539,13 @@ class DatabaseService implements DatabaseServiceInterface {
   }
   
   Future<List<Map<String, dynamic>>> getBlockedSenders() async {
+    if (kIsWeb) {
+      final blockedSendersJson = _prefs!.getString('blocked_senders');
+      if (blockedSendersJson == null) return [];
+      final List<dynamic> blockedSendersList = jsonDecode(blockedSendersJson);
+      return blockedSendersList.cast<Map<String, dynamic>>();
+    }
+    
     final db = _database!;
     return await db.query('blocked_senders', orderBy: 'blocked_at DESC');
   }
@@ -447,6 +570,12 @@ class DatabaseService implements DatabaseServiceInterface {
   }
   
   Future<bool> isUrlBlocked(String url) async {
+    if (kIsWeb) {
+      final blockedUrls = await getBlockedUrls();
+      final domain = _extractDomain(url);
+      return blockedUrls.any((blocked) => blocked['url'] == url || blocked['domain'] == domain);
+    }
+    
     final db = _database!;
     final result = await db.query(
       'blocked_urls',
@@ -467,6 +596,13 @@ class DatabaseService implements DatabaseServiceInterface {
   }
   
   Future<List<Map<String, dynamic>>> getBlockedUrls() async {
+    if (kIsWeb) {
+      final blockedUrlsJson = _prefs!.getString('blocked_urls');
+      if (blockedUrlsJson == null) return [];
+      final List<dynamic> blockedUrlsList = jsonDecode(blockedUrlsJson);
+      return blockedUrlsList.cast<Map<String, dynamic>>();
+    }
+    
     final db = _database!;
     return await db.query('blocked_urls', orderBy: 'blocked_at DESC');
   }
