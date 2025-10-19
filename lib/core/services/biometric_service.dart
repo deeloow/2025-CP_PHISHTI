@@ -65,7 +65,7 @@ class BiometricService {
       
       // Test biometric authentication
       final isAuthenticated = await authenticate(
-        reason: 'Enable biometric authentication for Phishti Detector',
+        reason: 'Enable biometric authentication for PhishTi Detector',
         useErrorDialogs: true,
       );
       
@@ -124,7 +124,7 @@ class BiometricService {
     if (!_isBiometricEnabled) return false;
     
     return await authenticate(
-      reason: 'Authenticate to access Phishti Detector',
+      reason: 'Authenticate to access PhishTi Detector',
       useErrorDialogs: true,
     );
   }
@@ -289,7 +289,7 @@ class BiometricService {
       if (result == true) {
         // Test biometric authentication
         final isAuthenticated = await authenticate(
-          reason: 'Set up biometric authentication for Phishti Detector',
+          reason: 'Set up biometric authentication for PhishTi Detector',
           useErrorDialogs: true,
         );
         

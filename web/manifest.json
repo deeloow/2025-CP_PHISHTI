@@ -1,11 +1,11 @@
 {
-    "name": "PhishTi: An ML-Based Mobile Application for Real-Time SMS Phishing Detection with URL Filtering",
+    "name": "PhishTi Detector",
     "short_name": "PhishTi",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#1a1a1a",
     "theme_color": "#1a1a1a",
-    "description": "A Flutter app for proactive SMS phishing detection using ML",
+    "description": "PhishTi Detector - Advanced SMS phishing detection using AI and ML",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

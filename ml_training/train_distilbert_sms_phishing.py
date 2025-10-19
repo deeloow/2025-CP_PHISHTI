@@ -138,20 +138,24 @@ def create_sample_dataset():
 def load_or_create_dataset():
     """Load dataset from file or create sample dataset"""
     
-    # Try to load existing dataset
-    csv_path = os.path.join(Config.DATA_DIR, 'sms_dataset.csv')
+    # Try to load downloaded SMS dataset first
+    sms_csv_path = os.path.join(Config.DATA_DIR, 'sms_spam_collection.csv')
+    fallback_csv_path = os.path.join(Config.DATA_DIR, 'sms_dataset.csv')
     
-    if os.path.exists(csv_path):
-        print(f"Loading dataset from {csv_path}")
-        df = pd.read_csv(csv_path)
+    if os.path.exists(sms_csv_path):
+        print(f"Loading SMS spam collection dataset from {sms_csv_path}")
+        df = pd.read_csv(sms_csv_path)
+    elif os.path.exists(fallback_csv_path):
+        print(f"Loading dataset from {fallback_csv_path}")
+        df = pd.read_csv(fallback_csv_path)
     else:
-        print("Creating sample dataset...")
+        print("No dataset found. Creating sample dataset...")
         df = create_sample_dataset()
         
         # Save the dataset
         os.makedirs(Config.DATA_DIR, exist_ok=True)
-        df.to_csv(csv_path, index=False)
-        print(f"Sample dataset saved to {csv_path}")
+        df.to_csv(fallback_csv_path, index=False)
+        print(f"Sample dataset saved to {fallback_csv_path}")
     
     print(f"Dataset shape: {df.shape}")
     print(f"Label distribution:\n{df['label'].value_counts()}")

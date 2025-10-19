@@ -1,0 +1,61 @@
+text,label,type,original_label
+"URGENT: Your account will be suspended. Click here to verify: http://fake-bank.com/verify",1,phishing,spam
+"Congratulations! You've won $1000. Claim now by clicking: http://scam-lottery.com",1,phishing,spam
+"Your credit card has been blocked. Verify immediately: http://fake-visa.com/verify",1,phishing,spam
+"ALERT: Suspicious activity detected. Confirm your identity: http://phishing-site.com",1,phishing,spam
+"Your PayPal account is limited. Restore access: http://fake-paypal.com/restore",1,phishing,spam
+"Bank security notice: Update your details now: http://scam-bank.com/update",1,phishing,spam
+"Your package is held at customs. Pay fee: http://fake-shipping.com/pay",1,phishing,spam
+"Tax refund available. Claim $500: http://fake-irs.com/refund",1,phishing,spam
+"Your Netflix subscription expired. Renew: http://fake-netflix.com/renew",1,phishing,spam
+"Amazon security alert. Verify account: http://fake-amazon.com/verify",1,phishing,spam
+"Your phone bill is overdue. Pay now: http://scam-telecom.com/pay",1,phishing,spam
+"Bank loan approved. Claim $5000: http://fake-loan.com/claim",1,phishing,spam
+"Your email will be deleted. Verify: http://phishing-email.com/verify",1,phishing,spam
+"Prize notification: You won an iPhone. Claim: http://fake-prize.com/claim",1,phishing,spam
+"Your insurance claim approved. Details: http://scam-insurance.com/claim",1,phishing,spam
+"Urgent: Your social security suspended: http://fake-ssa.com/restore",1,phishing,spam
+"Your cryptocurrency wallet compromised: http://fake-crypto.com/secure",1,phishing,spam
+"Final notice: Pay outstanding debt: http://scam-debt.com/pay",1,phishing,spam
+"Your Google account accessed illegally: http://fake-google.com/secure",1,phishing,spam
+"Medicare benefits update required: http://fake-medicare.com/update",1,phishing,spam
+"Click this link to verify your account immediately",1,phishing,spam
+"Your account has been compromised. Act now!",1,phishing,spam
+"Urgent action required for your security",1,phishing,spam
+"Verify your identity to prevent account closure",1,phishing,spam
+"Your payment method needs updating",1,phishing,spam
+"Suspicious login detected. Secure your account",1,phishing,spam
+"Your subscription will expire. Renew now",1,phishing,spam
+"Claim your reward before it expires",1,phishing,spam
+"Your package requires additional payment",1,phishing,spam
+"Update your billing information immediately",1,phishing,spam
+"Hi, how are you doing today?",0,legitimate,ham
+"Thanks for the meeting yesterday. Let's follow up next week.",0,legitimate,ham
+"Don't forget about dinner tonight at 7 PM.",0,legitimate,ham
+"Happy birthday! Hope you have a wonderful day.",0,legitimate,ham
+"The weather is beautiful today. Perfect for a walk.",0,legitimate,ham
+"Can you pick up milk on your way home?",0,legitimate,ham
+"Great job on the presentation today!",0,legitimate,ham
+"See you at the gym tomorrow morning.",0,legitimate,ham
+"The movie starts at 8 PM. Don't be late!",0,legitimate,ham
+"Thanks for helping me move last weekend.",0,legitimate,ham
+"Your appointment is confirmed for tomorrow at 2 PM.",0,legitimate,ham
+"The package was delivered successfully.",0,legitimate,ham
+"Your order has been shipped and will arrive in 2-3 days.",0,legitimate,ham
+"Reminder: Your subscription renews automatically next month.",0,legitimate,ham
+"Your flight is on time. Gate B12.",0,legitimate,ham
+"Thank you for your purchase. Receipt attached.",0,legitimate,ham
+"Your reservation is confirmed for Friday night.",0,legitimate,ham
+"The meeting has been rescheduled to next Tuesday.",0,legitimate,ham
+"Your prescription is ready for pickup.",0,legitimate,ham
+"Welcome to our service! Here's your account information.",0,legitimate,ham
+"Looking forward to seeing you soon",0,legitimate,ham
+"Thanks for the quick response",0,legitimate,ham
+"Have a great weekend!",0,legitimate,ham
+"The document you requested is attached",0,legitimate,ham
+"Let me know if you need anything else",0,legitimate,ham
+"Your order is being processed",0,legitimate,ham
+"Thanks for choosing our service",0,legitimate,ham
+"Your feedback is important to us",0,legitimate,ham
+"Welcome to the team!",0,legitimate,ham
+"Your request has been received",0,legitimate,ham

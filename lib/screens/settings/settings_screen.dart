@@ -8,6 +8,7 @@ import '../../core/providers/ml_provider.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/services/biometric_service.dart';
 import '../../models/user.dart';
+import 'online_ml_settings_screen.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -94,6 +95,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             floating: false,
             pinned: true,
             backgroundColor: Theme.of(context).colorScheme.background,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => context.go('/dashboard'),
+            ),
             flexibleSpace: FlexibleSpaceBar(
               title: Text(
                 'Settings',
@@ -336,6 +341,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       subtitle: modelStatus.isLoaded ? 'Models loaded' : 'Loading models...',
                       icon: Icons.psychology,
                       onTap: () => _showModelStatusDialog(context),
+                    ),
+                    _ListTile(
+                      title: 'Online ML Services',
+                      subtitle: 'Configure AI-powered analysis',
+                      icon: Icons.cloud,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const OnlineMLSettingsScreen(),
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -729,7 +745,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('About Phishti Detector'),
+        title: const Text('About PhishTi Detector'),
         content: const Text('Version 1.0.0\nAI-powered SMS phishing protection'),
         actions: [
           TextButton(

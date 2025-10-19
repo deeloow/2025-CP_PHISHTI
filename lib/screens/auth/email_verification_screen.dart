@@ -46,6 +46,10 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
         title: const Text('Verify Email'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/dashboard'),
+        ),
       ),
       body: SafeArea(
         child: SingleChildScrollView(

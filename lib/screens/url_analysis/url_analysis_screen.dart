@@ -100,6 +100,10 @@ class _UrlAnalysisScreenState extends State<UrlAnalysisScreen>
         title: const Text('URL Security Check'),
         backgroundColor: Theme.of(context).colorScheme.surface,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
       ),
       body: _isAnalyzing ? _buildAnalyzingView() : _buildResultsView(),
     );

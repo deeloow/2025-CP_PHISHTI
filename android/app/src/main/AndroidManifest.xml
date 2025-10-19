@@ -61,7 +61,7 @@
         android:required="false" />
 
     <application
-        android:label="PhishTi: An ML-Based Mobile Application for Real-Time SMS Phishing Detection with URL Filtering"
+        android:label="PhishTi Detector"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:requestLegacyExternalStorage="true"

@@ -116,6 +116,10 @@ class _MLSettingsScreenState extends ConsumerState<MLSettingsScreen> {
         title: const Text('ML Settings'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())

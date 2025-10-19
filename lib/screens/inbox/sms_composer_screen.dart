@@ -134,6 +134,10 @@ class _SmsComposerScreenState extends State<SmsComposerScreen> {
         title: const Text('New Message'),
         backgroundColor: Theme.of(context).colorScheme.surface,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
         actions: [
           if (_isLoading)
             const Padding(

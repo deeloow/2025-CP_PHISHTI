@@ -185,6 +185,10 @@ class _ManualAnalysisScreenState extends ConsumerState<ManualAnalysisScreen> {
         backgroundColor: Theme.of(context).colorScheme.surface,
         foregroundColor: Theme.of(context).colorScheme.onSurface,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/dashboard'),
+        ),
         actions: [
           IconButton(
             onPressed: () => context.go('/settings'),

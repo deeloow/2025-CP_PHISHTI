@@ -36,6 +36,10 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
             floating: false,
             pinned: true,
             backgroundColor: Theme.of(context).colorScheme.surface,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
             flexibleSpace: FlexibleSpaceBar(
               title: Text(
                 'Phishing Archive',

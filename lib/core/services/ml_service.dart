@@ -7,6 +7,7 @@ import 'package:crypto/crypto.dart';
 import '../../models/sms_message.dart';
 import '../../models/phishing_detection.dart';
 import 'online_ml_service.dart';
+import 'enhanced_online_ml_service.dart';
 import 'connectivity_service.dart';
 
 // Model types enum
@@ -35,8 +36,9 @@ class MLService {
   ModelType _currentModelType = ModelType.lstm;
   MLServiceMode _serviceMode = MLServiceMode.hybrid;
   
-  // Online service instance
+  // Online service instances
   final OnlineMLService _onlineService = OnlineMLService.instance;
+  final EnhancedOnlineMLService _enhancedOnlineService = EnhancedOnlineMLService.instance;
   final ConnectivityService _connectivityService = ConnectivityService.instance;
   
   // Model configuration
@@ -69,8 +71,12 @@ class MLService {
       // Initialize connectivity service
       await _connectivityService.initialize();
       
-      // Initialize online service if needed
+      // Initialize online services if needed
       if (_serviceMode == MLServiceMode.online || _serviceMode == MLServiceMode.hybrid) {
+        // Initialize enhanced online service (preferred)
+        await _enhancedOnlineService.initialize();
+        
+        // Initialize legacy online service as fallback
         await _onlineService.initialize(
           huggingFaceApiKey: huggingFaceApiKey,
           googleCloudApiKey: googleCloudApiKey,
@@ -204,10 +210,17 @@ class MLService {
     }
     
     try {
-      return await _onlineService.analyzeSms(message);
+      // Try enhanced online service first
+      return await _enhancedOnlineService.analyzeSms(message);
     } catch (e) {
-      print('Online analysis failed: $e');
-      return await _analyzeWithRules(message);
+      print('Enhanced online analysis failed: $e');
+      try {
+        // Fallback to legacy online service
+        return await _onlineService.analyzeSms(message);
+      } catch (e2) {
+        print('Legacy online analysis failed: $e2');
+        return await _analyzeWithRules(message);
+      }
     }
   }
   
@@ -227,7 +240,8 @@ class MLService {
     // If online, try online analysis first
     if (_connectivityService.isOnline) {
       try {
-        final onlineResult = await _onlineService.analyzeSms(message);
+        // Try enhanced online service first
+        final onlineResult = await _enhancedOnlineService.analyzeSms(message);
         
         // If online analysis gives high confidence result, use it
         if (onlineResult.confidence > 0.8) {
@@ -239,8 +253,18 @@ class MLService {
         
         return onlineResult;
       } catch (e) {
-        print('Online analysis failed in hybrid mode: $e');
-        // Fall through to offline analysis
+        print('Enhanced online analysis failed in hybrid mode: $e');
+        try {
+          // Fallback to legacy online service
+          final legacyResult = await _onlineService.analyzeSms(message);
+          if (legacyResult.confidence > 0.8) {
+            return legacyResult;
+          }
+          return legacyResult;
+        } catch (e2) {
+          print('Legacy online analysis failed in hybrid mode: $e2');
+          // Fall through to offline analysis
+        }
       }
     }
     
@@ -572,7 +596,12 @@ class MLService {
       'password', 'pin', 'ssn', 'social security',
       'credit card', 'bank account', 'wire transfer',
       'gift card', 'bitcoin', 'cryptocurrency',
-      'click here', 'verify account', 'update info'
+      'click here', 'verify account', 'update info',
+      'congratulations', 'won', 'prize', 'claim',
+      'free', 'offer', 'limited time', 'expires',
+      'suspended', 'blocked', 'compromised', 'fraud',
+      'urgent', 'immediately', 'act now', 'verify',
+      'confirm', 'update', 'restore', 'secure'
     ];
     
     final lowerText = text.toLowerCase();
@@ -700,7 +729,9 @@ class MLService {
     final phishingKeywords = [
       'paypal', 'amazon', 'apple', 'microsoft', 'google', 'facebook',
       'bank', 'secure', 'verify', 'update', 'confirm', 'login',
-      'account', 'suspended', 'limited', 'urgent', 'click'
+      'account', 'suspended', 'limited', 'urgent', 'click',
+      'fake', 'scam', 'phishing', 'malicious', 'steal', 'hack',
+      'lottery', 'prize', 'claim', 'free', 'offer', 'win'
     ];
     
     final lowerUrl = url.toLowerCase();

@@ -152,7 +152,7 @@ class PhishtiDetectorApp extends ConsumerWidget {
         ResponsiveHelper.init(context);
         
         return MaterialApp.router(
-          title: 'PhishTi: An ML-Based Mobile Application for Real-Time SMS Phishing Detection with URL Filtering',
+          title: 'PhishTi Detector',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.darkTheme,
           routerConfig: router,

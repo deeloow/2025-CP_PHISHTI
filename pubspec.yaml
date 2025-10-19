@@ -1,5 +1,5 @@
 name: phishti_detector
-description: A Flutter app for proactive SMS phishing detection using ML
+description: PhishTi Detector - Advanced SMS phishing detection using AI and ML
 version: 1.0.0+1
 
 environment:
@@ -71,3 +71,10 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  
+  # Assets
+  assets:
+    - assets/images/
+    - assets/animations/
+    - assets/fonts/
+    - assets/models/

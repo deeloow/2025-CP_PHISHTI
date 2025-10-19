@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/providers/auth_provider.dart';
 import '../../core/services/auth_service.dart';
+import '../widgets/app_logo_widget.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -82,7 +83,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
               color: Theme.of(context).colorScheme.primary,
             ),
             const SizedBox(width: 8),
-            const Text('Welcome to Phishti Detector'),
+            const Text('Welcome to PhishTi Detector'),
           ],
         ),
         content: Column(
@@ -146,40 +147,17 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // App Icon
-                    Container(
-                      width: 120,
-                      height: 120,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [
-                            Color(0xFF00FF88),
-                            Color(0xFF00D4FF),
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF00FF88).withOpacity(0.3),
-                            blurRadius: 20,
-                            spreadRadius: 5,
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.security,
-                        size: 60,
-                        color: Colors.white,
-                      ),
+                    // App Logo
+                    const AppLogoWidget(
+                      size: 120,
+                      showText: false,
                     ),
                     
                     const SizedBox(height: 32),
                     
                     // App Name
                     Text(
-                      'Phishti Detector',
+                      'PhishTi Detector',
                       style: Theme.of(context).textTheme.displayMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: const Color(0xFF00FF88),

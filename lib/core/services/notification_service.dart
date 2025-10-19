@@ -77,7 +77,7 @@ class NotificationService {
   Future<void> _createNotificationChannel() async {
     const androidChannel = AndroidNotificationChannel(
       'phishti_detector',
-      'Phishti Detector',
+      'PhishTi Detector',
       description: 'Notifications for phishing detection',
       importance: Importance.high,
       playSound: true,
@@ -105,7 +105,7 @@ class NotificationService {
   }) async {
     const androidDetails = AndroidNotificationDetails(
       'phishti_detector',
-      'Phishti Detector',
+      'PhishTi Detector',
       channelDescription: 'Notifications for phishing detection',
       importance: Importance.high,
       priority: Priority.high,
