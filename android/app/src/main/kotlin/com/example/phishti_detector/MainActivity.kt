@@ -26,6 +26,35 @@ class MainActivity: FlutterActivity() {
     private val SMS_EVENT_CHANNEL = "sms_events"
     private val SMS_PERMISSION_REQUEST = 1001
     private var eventSink: EventChannel.EventSink? = null
+    private var methodChannel: MethodChannel? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        handleIncomingIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIncomingIntent(intent)
+    }
+
+    private fun handleIncomingIntent(intent: Intent?) {
+        if (intent?.action == Intent.ACTION_SEND) {
+            when (intent.type) {
+                "text/plain", "text/*" -> {
+                    val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+                    if (!sharedText.isNullOrEmpty()) {
+                        // Send shared text to Flutter for analysis
+                        methodChannel?.invokeMethod("analyzeSharedText", mapOf(
+                            "text" to sharedText,
+                            "timestamp" to System.currentTimeMillis()
+                        ))
+                    }
+                }
+            }
+        }
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -48,7 +77,8 @@ class MainActivity: FlutterActivity() {
             }
         )
 
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
+        methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
+        methodChannel?.setMethodCallHandler { call, result ->
             when (call.method) {
                 "getAllSms" -> {
                     if (checkSmsPermissions()) {

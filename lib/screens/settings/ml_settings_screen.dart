@@ -226,6 +226,9 @@ class _MLSettingsScreenState extends ConsumerState<MLSettingsScreen> {
                   case ModelType.distilbert:
                     description = 'DistilBERT - Balanced (30MB)';
                     break;
+                  case ModelType.rust_distilbert:
+                    description = 'Rust DistilBERT - High Performance (250MB)';
+                    break;
                   case ModelType.ensemble:
                     description = 'Ensemble - Maximum accuracy';
                     break;

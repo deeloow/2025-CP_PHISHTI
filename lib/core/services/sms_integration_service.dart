@@ -153,6 +153,17 @@ class SmsIntegrationService {
     }
   }
 
+  /// Get all SMS messages with sender details (both analyzed and unanalyzed)
+  Future<List<SmsMessage>> getAnalyzedSmsMessages() async {
+    try {
+      // Get all SMS messages from device (with sender details)
+      return await getAllSmsMessages();
+    } catch (e) {
+      print('Error getting SMS messages with sender details: $e');
+      return [];
+    }
+  }
+
   /// Get SMS messages by thread ID (conversation)
   Future<List<SmsMessage>> getSmsByThread(String threadId) async {
     try {
@@ -187,42 +198,7 @@ class SmsIntegrationService {
     }
   }
 
-  /// Send SMS message
-  Future<bool> sendSms(String phoneNumber, String message) async {
-    try {
-      if (kIsWeb) {
-        print('sendSms (web stub): $phoneNumber -> $message');
-        return true;
-      }
-      final result = await _channel.invokeMethod('sendSms', {
-        'phoneNumber': phoneNumber,
-        'message': message,
-      });
-      return result == true;
-    } catch (e) {
-      print('Error sending SMS: $e');
-      return false;
-    }
-  }
 
-  /// Send MMS message
-  Future<bool> sendMms(String phoneNumber, String message, {String? imagePath}) async {
-    try {
-      if (kIsWeb) {
-        print('sendMms (web stub): $phoneNumber -> $message, image=$imagePath');
-        return true;
-      }
-      final result = await _channel.invokeMethod('sendMms', {
-        'phoneNumber': phoneNumber,
-        'message': message,
-        'imagePath': imagePath,
-      });
-      return result == true;
-    } catch (e) {
-      print('Error sending MMS: $e');
-      return false;
-    }
-  }
 
   /// Delete SMS message
   Future<bool> deleteSms(String messageId) async {
@@ -267,29 +243,6 @@ class SmsIntegrationService {
     }
   }
 
-  /// Check if app is default SMS app
-  Future<bool> isDefaultSmsApp() async {
-    try {
-      if (kIsWeb) return true; // Not applicable on web
-      final result = await _channel.invokeMethod('isDefaultSmsApp');
-      return result == true;
-    } catch (e) {
-      print('Error checking default SMS app status: $e');
-      return false;
-    }
-  }
-
-  /// Request to set as default SMS app
-  Future<bool> requestSetAsDefaultSmsApp() async {
-    try {
-      if (kIsWeb) return true; // Not applicable on web
-      final result = await _channel.invokeMethod('requestSetAsDefaultSmsApp');
-      return result == true;
-    } catch (e) {
-      print('Error requesting to set as default SMS app: $e');
-      return false;
-    }
-  }
 
   /// Get all contacts
   Future<List<Contact>> getContacts() async {
@@ -329,24 +282,6 @@ class SmsIntegrationService {
     }
   }
 
-  /// Send MMS with image
-  Future<bool> sendMmsWithImage(String phoneNumber, String message, String imagePath) async {
-    try {
-      if (kIsWeb) {
-        print('sendMmsWithImage (web stub): $phoneNumber -> $message, image=$imagePath');
-        return true;
-      }
-      final result = await _channel.invokeMethod('sendMmsWithImage', {
-        'phoneNumber': phoneNumber,
-        'message': message,
-        'imagePath': imagePath,
-      });
-      return result == true;
-    } catch (e) {
-      print('Error sending MMS with image: $e');
-      return false;
-    }
-  }
 
   /// Check contacts permissions
   Future<bool> hasContactsPermissions() async {

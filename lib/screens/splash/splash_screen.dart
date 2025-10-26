@@ -3,7 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/providers/auth_provider.dart';
-import '../../core/services/auth_service.dart';
+import '../../core/services/supabase_auth_service.dart';
+import '../../core/services/ml_service.dart';
 import '../widgets/app_logo_widget.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -86,20 +87,20 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
             const Text('Welcome to PhishTi Detector'),
           ],
         ),
-        content: Column(
+        content: const Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
+            Text(
               'Choose how you\'d like to use the app:',
               style: TextStyle(fontSize: 16),
             ),
-            const SizedBox(height: 16),
-            const Text(
+            SizedBox(height: 16),
+            Text(
               '🔐 Sign in for enhanced security, personalization, and cross-device protection',
               style: TextStyle(fontSize: 14),
             ),
-            const SizedBox(height: 8),
-            const Text(
+            SizedBox(height: 8),
+            Text(
               '🚀 Continue as guest to start detecting phishing SMS immediately',
               style: TextStyle(fontSize: 14),
             ),
@@ -109,7 +110,17 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
           TextButton(
             onPressed: () async {
               Navigator.of(context).pop();
-              await AuthService.instance.enableGuestMode();
+              await SupabaseAuthService.instance.enableGuestMode();
+              
+              // Ensure ML service is ready for guest mode
+              try {
+                await MLService.instance.initialize(serviceMode: MLServiceMode.hybrid);
+                print('ML Service ready for guest mode');
+              } catch (e) {
+                print('ML Service initialization failed in guest mode: $e');
+                // Continue anyway - rule-based detection will work
+              }
+              
               context.go('/dashboard'); // Continue as guest
             },
             child: const Text('Continue as Guest'),

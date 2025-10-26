@@ -1,4 +1,3 @@
-
 plugins {
     id "com.android.application"
     id "kotlin-android"
@@ -26,55 +25,17 @@ if (flutterVersionName == null) {
 
 android {
     namespace "com.example.phishti_detector"
-    compileSdk 36
-    ndkVersion "26.1.10909125"
+    compileSdk flutter.compileSdkVersion
+    ndkVersion flutter.ndkVersion
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
         coreLibraryDesugaringEnabled true
     }
-    
-    // Suppress deprecation and warning messages
-    tasks.withType(JavaCompile) {
-        options.compilerArgs << "-Xlint:-deprecation"
-        options.compilerArgs << "-Xlint:-unchecked"
-        options.compilerArgs << "-Xlint:-rawtypes"
-        options.compilerArgs << "-Xlint:-varargs"
-        options.deprecation = false
-        options.warnings = false
-    }
-    
-    // Suppress warnings for all Java compilation tasks
-    tasks.withType(org.gradle.api.tasks.compile.JavaCompile) {
-        options.compilerArgs << "-Xlint:-deprecation"
-        options.compilerArgs << "-Xlint:-unchecked"
-        options.compilerArgs << "-Xlint:-rawtypes"
-        options.compilerArgs << "-Xlint:-varargs"
-        options.deprecation = false
-        options.warnings = false
-    }
 
     kotlinOptions {
         jvmTarget = '1.8'
-        freeCompilerArgs += [
-            "-Xsuppress-version-warnings",
-            "-Xno-param-assertions",
-            "-Xno-call-assertions",
-            "-Xno-receiver-assertions"
-        ]
-    }
-    
-    // Suppress Kotlin warnings
-    tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile) {
-        kotlinOptions {
-            freeCompilerArgs += [
-                "-Xsuppress-version-warnings",
-                "-Xno-param-assertions",
-                "-Xno-call-assertions",
-                "-Xno-receiver-assertions"
-            ]
-        }
     }
 
     sourceSets {
@@ -83,54 +44,21 @@ android {
 
     defaultConfig {
         applicationId "com.example.phishti_detector"
-        minSdkVersion flutter.minSdkVersion  // Explicitly set for maximum compatibility
-        targetSdkVersion 34
+        minSdkVersion flutter.minSdkVersion
+        targetSdkVersion flutter.targetSdkVersion
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
         
-        // Support for different screen densities
-        resConfigs "en", "ar", "es", "fr", "de", "it", "pt", "ru", "zh", "ja", "ko"
-        
-        // Multi-architecture support
+        // Rust FFI configuration
         ndk {
-            abiFilters "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
+            abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'
         }
-        
-        // Enable multidex for older devices
-        multiDexEnabled true
     }
 
     buildTypes {
         release {
             signingConfig signingConfigs.debug
-            minifyEnabled false
-            shrinkResources false
         }
-        debug {
-            minifyEnabled false
-            shrinkResources false
-        }
-    }
-    
-    // Additional linting configuration - suppress all warnings
-    lintOptions {
-        disable 'all'
-        abortOnError false
-        checkReleaseBuilds false
-    }
-    
-    // Ensure compatibility with AGP 8.6.0
-    packagingOptions {
-        pickFirst '**/libc++_shared.so'
-        pickFirst '**/libjsc.so'
-        exclude 'META-INF/DEPENDENCIES'
-        exclude 'META-INF/LICENSE'
-        exclude 'META-INF/LICENSE.txt'
-        exclude 'META-INF/license.txt'
-        exclude 'META-INF/NOTICE'
-        exclude 'META-INF/NOTICE.txt'
-        exclude 'META-INF/notice.txt'
-        exclude 'META-INF/ASL2.0'
     }
 }
 
@@ -139,22 +67,53 @@ flutter {
 }
 
 dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
-    implementation 'androidx.multidex:multidex:2.0.1'
-    implementation 'androidx.core:core:1.12.0'
-    implementation 'androidx.appcompat:appcompat:1.6.1'
     
-    // Import the Firebase BoM
-    implementation platform('com.google.firebase:firebase-bom:34.3.0')
-    
-    // TODO: Add the dependencies for Firebase products you want to use
-    // When using the BoM, don't specify versions in Firebase dependencies
-    implementation 'com.google.firebase:firebase-analytics'
-    
-    // Add the dependencies for any other desired Firebase products
-    // https://firebase.google.com/docs/android/setup#available-libraries
-    implementation 'com.google.firebase:firebase-auth'
-    implementation 'com.google.firebase:firebase-firestore'
-    implementation 'com.google.firebase:firebase-messaging'
+    // Rust FFI support (disabled for now)
+    // implementation 'com.rust:rust-ffi:1.0.0'
 }
 
+// Rust build task (disabled for now - will use fallback)
+// task buildRust {
+//     doLast {
+//         exec {
+//             workingDir '../../rust_ml'
+//             commandLine 'cargo', 'build', '--release', '--target', 'aarch64-linux-android'
+//         }
+//         exec {
+//             workingDir '../../rust_ml'
+//             commandLine 'cargo', 'build', '--release', '--target', 'armv7-linux-androideabi'
+//         }
+//         exec {
+//             workingDir '../../rust_ml'
+//             commandLine 'cargo', 'build', '--release', '--target', 'x86_64-linux-android'
+//         }
+//     }
+// }
+
+// Copy Rust libraries to Android (disabled for now)
+// task copyRustLibs {
+//     dependsOn buildRust
+//     doLast {
+//         copy {
+//             from '../../rust_ml/target/aarch64-linux-android/release/librust_ml.so'
+//             into 'src/main/jniLibs/arm64-v8a'
+//         }
+//         copy {
+//             from '../../rust_ml/target/armv7-linux-androideabi/release/librust_ml.so'
+//             into 'src/main/jniLibs/armeabi-v7a'
+//         }
+//         copy {
+//             from '../../rust_ml/target/x86_64-linux-android/release/librust_ml.so'
+//             into 'src/main/jniLibs/x86_64'
+//         }
+//     }
+// }
+
+// Make build depend on Rust library copy (disabled for now)
+// tasks.whenTaskAdded { task ->
+//     if (task.name == 'assembleDebug' || task.name == 'assembleRelease') {
+//         task.dependsOn copyRustLibs
+//     }
+// }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
-import 'package:firebase_core/firebase_core.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -12,43 +12,37 @@ import 'core/optimizations/performance_optimizer.dart';
 import 'core/optimizations/device_optimizer.dart';
 import 'core/optimizations/performance_monitor.dart';
 import 'core/optimizations/huawei_optimizer.dart';
-import 'core/optimizations/frame_rate_optimizer.dart';
 import 'core/router/app_router.dart';
 import 'core/services/notification_service.dart';
 import 'core/services/ml_service.dart';
-import 'core/services/database_service_interface.dart';
 import 'core/services/database_service.dart';
-import 'core/services/firebase_test_service.dart';
-import 'core/services/auth_service.dart';
-import 'core/services/php_auth_service.dart';
+import 'core/services/supabase_auth_service.dart';
+import 'core/services/quick_test.dart';
 import 'core/services/biometric_service.dart';
 import 'core/services/sms_integration_service.dart';
-import 'firebase_options.dart';
+import 'core/services/sms_share_service.dart';
+import 'supabase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize Firebase (temporarily disabled until you configure Firebase)
+  // Initialize Supabase
   try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
+    await Supabase.initialize(
+      url: SupabaseOptions.supabaseUrl,
+      anonKey: SupabaseOptions.supabaseAnonKey,
     );
-    
-  // Test Firebase connection (disabled until Firebase is configured)
-  // await FirebaseTestService.runAllTests();
+    print('✅ Supabase initialized successfully');
   } catch (e) {
-    print('⚠️ Firebase not configured yet. Please follow the Firebase setup guide.');
-    print('📖 See FIREBASE_SETUP_GUIDE.md for instructions.');
+    print('⚠️ Supabase not configured yet. Please update supabase_options.dart with your credentials.');
+    print('📖 See SUPABASE_SETUP_GUIDE.md for instructions.');
   }
   
   // Initialize services
   await _initializeServices();
   
   // Initialize guest mode
-  await AuthService.instance.initializeGuestMode();
-  
-  // Initialize PHP auth service
-  await PhpAuthService.instance.initialize();
+  await SupabaseAuthService.instance.initializeGuestMode();
   
   // Initialize device-specific optimizations (skip on web)
   if (!kIsWeb) {
@@ -89,8 +83,10 @@ Future<void> _initializeServices() async {
     // Initialize database
     await DatabaseService.instance.initialize();
     
-    // Initialize ML service in hybrid mode (online + offline)
+    // Initialize ML service with Rust DistilBERT as primary model
+    // This ensures ML-based phishing detection instead of rule-based
     await MLService.instance.initialize(
+      modelType: ModelType.rust_distilbert,
       serviceMode: MLServiceMode.hybrid,
       // Add your API keys here (store securely in production)
       // huggingFaceApiKey: 'your_hugging_face_api_key',
@@ -111,9 +107,23 @@ Future<void> _initializeServices() async {
     // Initialize SMS integration service
     await SmsIntegrationService.instance.initialize();
     
+    // Initialize SMS share service
+    await SmsShareService.instance.initialize();
+    
     // Request permissions (skip on web)
     if (!kIsWeb) {
       await _requestPermissions();
+    }
+    
+    print('All services initialized successfully - ready for both authenticated and guest mode');
+    
+    // Run quick test in debug mode
+    if (kDebugMode) {
+      try {
+        await QuickTest.runQuickTest();
+      } catch (e) {
+        print('Quick test failed: $e');
+      }
     }
   } catch (e) {
     print('Error initializing services: $e');

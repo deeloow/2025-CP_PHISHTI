@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'package:flutter/services.dart';
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 // import 'package:tflite_flutter/tflite_flutter.dart';
 // import 'package:tflite_flutter_helper/tflite_flutter_helper.dart';
 
@@ -9,9 +9,10 @@ import '../../models/phishing_detection.dart';
 import 'online_ml_service.dart';
 import 'enhanced_online_ml_service.dart';
 import 'connectivity_service.dart';
+import 'rust_ml_service.dart';
 
 // Model types enum
-enum ModelType { lstm, bert, distilbert, ensemble }
+enum ModelType { lstm, bert, distilbert, rust_distilbert, ensemble }
 
 // ML service modes
 enum MLServiceMode { offline, online, hybrid }
@@ -40,23 +41,20 @@ class MLService {
   final OnlineMLService _onlineService = OnlineMLService.instance;
   final EnhancedOnlineMLService _enhancedOnlineService = EnhancedOnlineMLService.instance;
   final ConnectivityService _connectivityService = ConnectivityService.instance;
+  final RustMLService _rustMLService = RustMLService.instance;
   
   // Model configuration
-  static const String _smsModelPath = 'assets/models/sms_classifier.tflite';
-  static const String _urlModelPath = 'assets/models/url_classifier.tflite';
   static const String _bertModelPath = 'assets/models/bert_phishing_classifier.tflite';
   static const String _lstmModelPath = 'assets/models/lstm_phishing_classifier.tflite';
   static const int _maxSequenceLength = 128;
-  static const int _vocabSize = 10000;
   
   
   // Preprocessing
   final Map<String, int> _wordToIndex = {};
-  final Map<int, String> _indexToWord = {};
-  bool _vocabLoaded = false;
+  final bool _vocabLoaded = false;
   
   Future<void> initialize({
-    ModelType modelType = ModelType.lstm,
+    ModelType modelType = ModelType.rust_distilbert,
     MLServiceMode serviceMode = MLServiceMode.hybrid,
     String? huggingFaceApiKey,
     String? googleCloudApiKey,
@@ -68,29 +66,65 @@ class MLService {
     _serviceMode = serviceMode;
     
     try {
-      // Initialize connectivity service
+      // Initialize connectivity service first
       await _connectivityService.initialize();
       
-      // Initialize online services if needed
-      if (_serviceMode == MLServiceMode.online || _serviceMode == MLServiceMode.hybrid) {
-        // Initialize enhanced online service (preferred)
-        await _enhancedOnlineService.initialize();
-        
-        // Initialize legacy online service as fallback
-        await _onlineService.initialize(
-          huggingFaceApiKey: huggingFaceApiKey,
-          googleCloudApiKey: googleCloudApiKey,
-          customApiKey: customApiKey,
-        );
+      // PRIORITY 1: Try to initialize Rust DistilBERT model first (best performance)
+      if (modelType == ModelType.rust_distilbert) {
+        try {
+          await _rustMLService.initialize();
+          if (_rustMLService.isInitialized) {
+            print('✅ Rust DistilBERT model initialized successfully - ML-based detection enabled');
+            _isInitialized = true;
+            return; // Success - exit early
+          } else {
+            print('⚠️ Rust DistilBERT initialized but not ready - continuing with other services');
+          }
+        } catch (e) {
+          print('❌ Rust DistilBERT initialization failed: $e');
+          print('🔄 Falling back to online ML services...');
+        }
       }
       
-      // Initialize offline models if needed
+      // PRIORITY 2: Try online ML services if Rust DistilBERT fails
+      final isOnline = _connectivityService.isOnline;
+      
+      if (isOnline) {
+        // If online, try to initialize online services
+        if (_serviceMode == MLServiceMode.online || _serviceMode == MLServiceMode.hybrid) {
+          try {
+            // Initialize enhanced online service (preferred)
+            await _enhancedOnlineService.initialize();
+            print('✅ Enhanced online ML service initialized successfully - ML-based detection enabled');
+            _isInitialized = true;
+            return; // Success - exit early
+          } catch (e) {
+            print('❌ Enhanced online service initialization failed: $e');
+          }
+          
+          try {
+            // Initialize legacy online service as fallback
+            await _onlineService.initialize(
+              huggingFaceApiKey: huggingFaceApiKey,
+              googleCloudApiKey: googleCloudApiKey,
+              customApiKey: customApiKey,
+            );
+            print('✅ Legacy online ML service initialized successfully - ML-based detection enabled');
+            _isInitialized = true;
+            return; // Success - exit early
+          } catch (e) {
+            print('❌ Legacy online service initialization failed: $e');
+          }
+        }
+      }
+      
+      // PRIORITY 3: Initialize offline models as fallback
       if (_serviceMode == MLServiceMode.offline || _serviceMode == MLServiceMode.hybrid) {
         await _initializeOfflineModels(modelType);
       }
       
       _isInitialized = true;
-      print('ML Service initialized in ${_serviceMode.toString()} mode');
+      print('ML Service initialized in ${_serviceMode.toString()} mode (Online: $isOnline)');
     } catch (e) {
       print('Error initializing ML service: $e');
       // Fallback to rule-based detection if models fail
@@ -126,14 +160,18 @@ class MLService {
         case ModelType.bert:
           _bertModel ??= await _loadModel(_bertModelPath);
           break;
+        case ModelType.distilbert:
+          _bertModel ??= await _loadModel(_bertModelPath);
+          break;
+        case ModelType.rust_distilbert:
+          // Rust model is initialized separately
+          break;
         case ModelType.lstm:
           _lstmModel ??= await _loadModel(_lstmModelPath);
           break;
         case ModelType.ensemble:
           _bertModel ??= await _loadModel(_bertModelPath);
           _lstmModel ??= await _loadModel(_lstmModelPath);
-          break;
-        default:
           break;
       }
     } catch (e) {
@@ -151,24 +189,6 @@ class MLService {
   //   }
   // }
   
-  Future<void> _loadVocabulary() async {
-    try {
-      final vocabData = await rootBundle.loadString('assets/models/vocab.json');
-      final vocabMap = json.decode(vocabData) as Map<String, dynamic>;
-      
-      for (final entry in vocabMap.entries) {
-        final word = entry.key;
-        final index = entry.value as int;
-        _wordToIndex[word] = index;
-        _indexToWord[index] = word;
-      }
-      
-      _vocabLoaded = true;
-    } catch (e) {
-      print('Error loading vocabulary: $e');
-      _vocabLoaded = false;
-    }
-  }
   
   Future<PhishingDetection> analyzeSms(SmsMessage message) async {
     if (!_isInitialized) {
@@ -180,18 +200,94 @@ class MLService {
       final urls = extractUrls(message.body);
       final messageWithUrls = message.copyWith(extractedUrls: urls);
       
-      // Determine which analysis method to use based on service mode and connectivity
-      switch (_serviceMode) {
-        case MLServiceMode.online:
-          return await _analyzeOnlineOnly(messageWithUrls);
-        case MLServiceMode.offline:
-          return await _analyzeOfflineOnly(messageWithUrls);
-        case MLServiceMode.hybrid:
-          return await _analyzeHybrid(messageWithUrls);
+      // PRIORITY 1: Try Rust DistilBERT first (best ML performance)
+      if (_currentModelType == ModelType.rust_distilbert && _rustMLService.isInitialized) {
+        try {
+          final result = await _rustMLService.analyzeSms(messageWithUrls);
+          if (kDebugMode) {
+            print('🤖 Rust DistilBERT analysis completed - ML-based detection (confidence: ${result.confidence})');
+          }
+          return result;
+        } catch (e) {
+          if (kDebugMode) {
+            print('❌ Rust DistilBERT analysis failed: $e');
+            print('🔄 Falling back to other ML services...');
+          }
+        }
       }
+      
+      // PRIORITY 2: Try online ML services if available
+      if (_connectivityService.isOnline) {
+        try {
+          // Try enhanced online service first
+          final result = await _enhancedOnlineService.analyzeSms(messageWithUrls);
+          if (kDebugMode) {
+            print('🌐 Enhanced online ML analysis completed - ML-based detection');
+          }
+          return result;
+        } catch (e) {
+          if (kDebugMode) {
+            print('❌ Enhanced online service failed: $e');
+          }
+        }
+        
+        try {
+          // Try legacy online service as fallback
+          final result = await _onlineService.analyzeSms(messageWithUrls);
+          if (kDebugMode) {
+            print('🌐 Legacy online ML analysis completed - ML-based detection');
+          }
+          return result;
+        } catch (e) {
+          if (kDebugMode) {
+            print('❌ Legacy online service failed: $e');
+          }
+        }
+      }
+      
+      // PRIORITY 3: Try to reinitialize Rust DistilBERT if it failed
+      if (_currentModelType == ModelType.rust_distilbert && !_rustMLService.isInitialized) {
+        try {
+          await _rustMLService.initialize();
+          if (_rustMLService.isInitialized) {
+            final result = await _rustMLService.analyzeSms(messageWithUrls);
+            if (kDebugMode) {
+              print('🤖 Rust DistilBERT reinitialized and analysis completed - ML-based detection');
+            }
+            return result;
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            print('❌ Rust DistilBERT reinitialization failed: $e');
+          }
+        }
+      }
+      
+      // PRIORITY 4: All ML services failed - return neutral result
+      if (kDebugMode) {
+        print('⚠️ All ML services failed - returning neutral result');
+      }
+      return PhishingDetection(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        messageId: message.id,
+        confidence: 0.0,
+        type: PhishingType.content,
+        indicators: ['ML services unavailable'],
+        reason: 'All ML-based detection services failed',
+        detectedAt: DateTime.now(),
+      );
+      
     } catch (e) {
-      print('Error analyzing SMS: $e');
-      return await _analyzeWithRules(message);
+      print('❌ Error analyzing SMS: $e');
+      return PhishingDetection(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        messageId: message.id,
+        confidence: 0.0,
+        type: PhishingType.content,
+        indicators: ['Analysis error'],
+        reason: 'ML analysis failed: $e',
+        detectedAt: DateTime.now(),
+      );
     }
   }
   
@@ -219,7 +315,15 @@ class MLService {
         return await _onlineService.analyzeSms(message);
       } catch (e2) {
         print('Legacy online analysis failed: $e2');
-        return await _analyzeWithRules(message);
+        return PhishingDetection(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          messageId: message.id,
+          confidence: 0.0,
+          type: PhishingType.content,
+          indicators: ['All online ML services failed'],
+          reason: 'Online ML analysis failed',
+          detectedAt: DateTime.now(),
+        );
       }
     }
   }
@@ -227,93 +331,98 @@ class MLService {
   /// Analyze using offline models only
   Future<PhishingDetection> _analyzeOfflineOnly(SmsMessage message) async {
     try {
-      // For mobile testing, use rule-based detection only
-      return await _analyzeWithRules(message);
+      // Use Rust DistilBERT if available and selected
+      if (_currentModelType == ModelType.rust_distilbert && _rustMLService.isInitialized) {
+        return await _rustMLService.analyzeSms(message);
+      }
+      
+      // Try other ML models
+      final mlResult = await _analyzeWithML(message);
+      if (mlResult != null) {
+        return mlResult;
+      }
+      
+      // If no ML models available, return neutral result
+      return PhishingDetection(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        messageId: message.id,
+        confidence: 0.0,
+        type: PhishingType.content,
+        indicators: ['No offline ML models available'],
+        reason: 'Offline ML analysis failed',
+        detectedAt: DateTime.now(),
+      );
     } catch (e) {
       print('Offline analysis failed: $e');
-      return await _analyzeWithRules(message);
+      return PhishingDetection(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        messageId: message.id,
+        confidence: 0.0,
+        type: PhishingType.content,
+        indicators: ['Offline analysis error'],
+        reason: 'Offline ML analysis failed: $e',
+        detectedAt: DateTime.now(),
+      );
     }
   }
   
   /// Analyze using hybrid approach (online preferred, offline fallback)
   Future<PhishingDetection> _analyzeHybrid(SmsMessage message) async {
-    // If online, try online analysis first
+    // If online, prioritize online services for better accuracy
     if (_connectivityService.isOnline) {
+      print('Online detected - using online ML services for analysis');
+      
       try {
-        // Try enhanced online service first
+        // Try enhanced online service first (best accuracy)
         final onlineResult = await _enhancedOnlineService.analyzeSms(message);
         
-        // If online analysis gives high confidence result, use it
-        if (onlineResult.confidence > 0.8) {
+        // Use online result if confidence is reasonable (lower threshold for online services)
+        if (onlineResult.confidence > 0.6) {
+          print('Enhanced online analysis successful (confidence: ${onlineResult.confidence})');
           return onlineResult;
         }
         
-        // For mobile testing, skip ML combination
-        // Use online result or fallback to rules
-        
+        // If confidence is low, still use online result but log it
+        print('Enhanced online analysis completed with low confidence: ${onlineResult.confidence}');
         return onlineResult;
       } catch (e) {
         print('Enhanced online analysis failed in hybrid mode: $e');
         try {
           // Fallback to legacy online service
           final legacyResult = await _onlineService.analyzeSms(message);
-          if (legacyResult.confidence > 0.8) {
+          if (legacyResult.confidence > 0.6) {
+            print('Legacy online analysis successful (confidence: ${legacyResult.confidence})');
             return legacyResult;
           }
+          print('Legacy online analysis completed with low confidence: ${legacyResult.confidence}');
           return legacyResult;
         } catch (e2) {
           print('Legacy online analysis failed in hybrid mode: $e2');
           // Fall through to offline analysis
         }
       }
+    } else {
+      print('Offline detected - using offline analysis');
     }
     
     // Fallback to offline analysis
     return await _analyzeOfflineOnly(message);
   }
   
-  /// Combine online and offline analysis results
-  PhishingDetection _combineResults(
-    PhishingDetection onlineResult,
-    PhishingDetection offlineResult,
-    SmsMessage message,
-  ) {
-    // Weighted average of confidences (online gets higher weight)
-    final combinedConfidence = (onlineResult.confidence * 0.7) + (offlineResult.confidence * 0.3);
-    
-    // Combine indicators
-    final combinedIndicators = <String>{
-      ...onlineResult.indicators,
-      ...offlineResult.indicators,
-    }.toList();
-    
-    // Use higher confidence type
-    final combinedType = onlineResult.confidence > offlineResult.confidence 
-        ? onlineResult.type 
-        : offlineResult.type;
-    
-    return PhishingDetection(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      messageId: message.id,
-      confidence: combinedConfidence,
-      type: combinedType,
-      indicators: combinedIndicators,
-      reason: 'Hybrid analysis (online + offline)',
-      detectedAt: DateTime.now(),
-    );
-  }
   
   Future<PhishingDetection?> _analyzeWithML(SmsMessage message) async {
     try {
       switch (_currentModelType) {
         case ModelType.bert:
           return await _analyzeWithBERT(message);
+        case ModelType.distilbert:
+          return await _analyzeWithBERT(message);
+        case ModelType.rust_distilbert:
+          return await _rustMLService.analyzeSms(message);
         case ModelType.lstm:
           return await _analyzeWithLSTM(message);
         case ModelType.ensemble:
           return await _analyzeWithEnsemble(message);
-        default:
-          return await _analyzeWithLSTM(message);
       }
     } catch (e) {
       print('Error in ML analysis: $e');
@@ -348,7 +457,7 @@ class MLService {
           messageId: message.id,
           confidence: confidence,
           type: PhishingType.content,
-          indicators: _extractIndicators(message.body),
+          indicators: ['LSTM model detected suspicious content'],
           reason: 'LSTM model detected suspicious content',
           detectedAt: DateTime.now(),
         );
@@ -391,7 +500,7 @@ class MLService {
           messageId: message.id,
           confidence: confidence,
           type: PhishingType.content,
-          indicators: _extractIndicators(message.body),
+          indicators: ['LSTM model detected suspicious content'],
           reason: 'BERT model detected suspicious content',
           detectedAt: DateTime.now(),
         );
@@ -420,7 +529,7 @@ class MLService {
             messageId: message.id,
             confidence: combinedConfidence,
             type: PhishingType.content,
-            indicators: [...lstmResult.indicators, ...bertResult.indicators].toSet().toList(),
+            indicators: <String>{...lstmResult.indicators, ...bertResult.indicators}.toList(),
             reason: 'Ensemble model (LSTM + BERT) detected suspicious content',
             detectedAt: DateTime.now(),
           );
@@ -438,74 +547,6 @@ class MLService {
     }
   }
   
-  Future<PhishingDetection> _analyzeWithRules(SmsMessage message) async {
-    final indicators = <String>[];
-    double confidence = 0.0;
-    PhishingType type = PhishingType.content;
-    String reason = 'Rule-based analysis';
-    
-    // Check for urgent language
-    if (_containsUrgentLanguage(message.body)) {
-      indicators.add('Urgent language detected');
-      confidence += 0.3;
-      type = PhishingType.urgent;
-    }
-    
-    // Check for suspicious keywords
-    final suspiciousKeywords = _getSuspiciousKeywords(message.body);
-    if (suspiciousKeywords.isNotEmpty) {
-      indicators.addAll(suspiciousKeywords);
-      confidence += suspiciousKeywords.length * 0.1;
-      type = PhishingType.suspiciousKeywords;
-    }
-    
-    // Check for suspicious URLs with enhanced analysis
-    final urls = extractUrls(message.body);
-    for (final url in urls) {
-      final urlAnalysis = await analyzeUrl(url);
-      if (urlAnalysis['isSuspicious']) {
-        indicators.add('Suspicious URL: $url (${urlAnalysis['threatLevel']})');
-        indicators.addAll(urlAnalysis['indicators'].cast<String>());
-        confidence += urlAnalysis['confidence'] * 0.5; // Weight URL analysis
-        type = PhishingType.url;
-      }
-    }
-    
-    // Check sender patterns
-    if (_isSuspiciousSender(message.sender)) {
-      indicators.add('Suspicious sender pattern');
-      confidence += 0.2;
-      type = PhishingType.sender;
-    }
-    
-    // Check for common phishing patterns
-    if (_hasPhishingPatterns(message.body)) {
-      indicators.add('Common phishing patterns detected');
-      confidence += 0.3;
-    }
-    
-    if (confidence > 0.5) {
-      return PhishingDetection(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        messageId: message.id,
-        confidence: confidence,
-        type: type,
-        indicators: indicators,
-        reason: reason,
-        detectedAt: DateTime.now(),
-      );
-    }
-    
-    return PhishingDetection(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      messageId: message.id,
-      confidence: confidence,
-      type: type,
-      indicators: indicators,
-      reason: 'No threats detected',
-      detectedAt: DateTime.now(),
-    );
-  }
   
   String _preprocessText(String text) {
     return text
@@ -552,61 +593,8 @@ class MLService {
     return sequence;
   }
   
-  // Extract URLs from text
-  List<String> _extractUrls(String text) {
-    final urlRegex = RegExp(r'https?://[^\s]+');
-    return urlRegex.allMatches(text).map((match) => match.group(0)!).toList();
-  }
   
-  List<String> _extractIndicators(String text) {
-    final indicators = <String>[];
-    
-    // Check for urgent language
-    if (_containsUrgentLanguage(text)) {
-      indicators.add('Urgent language');
-    }
-    
-    // Check for suspicious keywords
-    indicators.addAll(_getSuspiciousKeywords(text));
-    
-    // Check for suspicious URLs
-    final urls = _extractUrls(text);
-    for (final url in urls) {
-      if (_isSuspiciousUrl(url)) {
-        indicators.add('Suspicious URL');
-      }
-    }
-    
-    return indicators;
-  }
   
-  bool _containsUrgentLanguage(String text) {
-    final urgentWords = [
-      'urgent', 'immediately', 'act now', 'limited time',
-      'expires', 'verify', 'confirm', 'suspended',
-      'blocked', 'security', 'fraud', 'unauthorized'
-    ];
-    
-    final lowerText = text.toLowerCase();
-    return urgentWords.any((word) => lowerText.contains(word));
-  }
-  
-  List<String> _getSuspiciousKeywords(String text) {
-    final suspiciousKeywords = [
-      'password', 'pin', 'ssn', 'social security',
-      'credit card', 'bank account', 'wire transfer',
-      'gift card', 'bitcoin', 'cryptocurrency',
-      'click here', 'verify account', 'update info',
-      'congratulations', 'won', 'prize', 'claim',
-      'free', 'offer', 'limited time', 'expires',
-      'suspended', 'blocked', 'compromised', 'fraud',
-      'urgent', 'immediately', 'act now', 'verify',
-      'confirm', 'update', 'restore', 'secure'
-    ];
-    
-    final lowerText = text.toLowerCase();
-    return suspiciousKeywords.where((keyword) => lowerText.contains(keyword)).toList();
-  }
   
   List<String> extractUrls(String text) {
     // Enhanced URL extraction with support for various formats
@@ -698,10 +686,6 @@ class MLService {
     return analysis;
   }
 
-  bool _isSuspiciousUrl(String url) {
-    // Legacy method - now uses the enhanced analysis
-    return _isUrlShortener(url) || _isSuspiciousDomain(url) || _hasPhishingKeywordsInUrl(url);
-  }
   
   bool _isUrlShortener(String url) {
     final shorteners = [
@@ -761,27 +745,6 @@ class MLService {
     return ipPattern.hasMatch(url);
   }
   
-  bool _isSuspiciousSender(String sender) {
-    // Check for suspicious sender patterns
-    final suspiciousPatterns = [
-      RegExp(r'^\d{4,}$'), // Only numbers
-      RegExp(r'^[A-Z]{2,}$'), // Only uppercase letters
-      RegExp(r'.*@.*\..*'), // Email-like patterns in SMS
-    ];
-    
-    return suspiciousPatterns.any((pattern) => pattern.hasMatch(sender));
-  }
-  
-  bool _hasPhishingPatterns(String text) {
-    final patterns = [
-      RegExp(r'click\s+here', caseSensitive: false),
-      RegExp(r'verify\s+your\s+account', caseSensitive: false),
-      RegExp(r'update\s+your\s+information', caseSensitive: false),
-      RegExp(r'your\s+account\s+has\s+been', caseSensitive: false),
-    ];
-    
-    return patterns.any((pattern) => pattern.hasMatch(text));
-  }
   
   Future<String> generateSignature(SmsMessage message) async {
     final content = '${message.sender}:${message.body}';
@@ -864,9 +827,88 @@ class MLService {
                       _serviceMode == MLServiceMode.hybrid,
       'hasInternetConnection': _connectivityService.isOnline,
       'hasOfflineModels': _smsModel != null || _lstmModel != null || _bertModel != null,
+      'hasRustDistilBERT': _rustMLService.isInitialized,
       'hasOnlineApiKeys': _onlineService.getServiceStatus()['hasHuggingFaceKey'] ||
                          _onlineService.getServiceStatus()['hasGoogleCloudKey'] ||
                          _onlineService.getServiceStatus()['hasCustomApiKey'],
     };
+  }
+  
+  /// Force ML-based detection (avoid rule-based fallback)
+  Future<PhishingDetection> analyzeSmsMLOnly(SmsMessage message) async {
+    if (!_isInitialized) {
+      await initialize();
+    }
+    
+    try {
+      // Extract URLs from message first
+      final urls = extractUrls(message.body);
+      final messageWithUrls = message.copyWith(extractedUrls: urls);
+      
+      // Try Rust DistilBERT first
+      if (_rustMLService.isInitialized) {
+        try {
+          final result = await _rustMLService.analyzeSms(messageWithUrls);
+          if (kDebugMode) {
+            print('🤖 ML-only: Rust DistilBERT analysis completed (confidence: ${result.confidence})');
+          }
+          return result;
+        } catch (e) {
+          if (kDebugMode) {
+            print('❌ ML-only: Rust DistilBERT failed: $e');
+          }
+        }
+      }
+      
+      // Try online ML services
+      if (_connectivityService.isOnline) {
+        try {
+          final result = await _enhancedOnlineService.analyzeSms(messageWithUrls);
+          if (kDebugMode) {
+            print('🌐 ML-only: Enhanced online analysis completed (confidence: ${result.confidence})');
+          }
+          return result;
+        } catch (e) {
+          if (kDebugMode) {
+            print('❌ ML-only: Enhanced online failed: $e');
+          }
+        }
+        
+        try {
+          final result = await _onlineService.analyzeSms(messageWithUrls);
+          if (kDebugMode) {
+            print('🌐 ML-only: Legacy online analysis completed (confidence: ${result.confidence})');
+          }
+          return result;
+        } catch (e) {
+          if (kDebugMode) {
+            print('❌ ML-only: Legacy online failed: $e');
+          }
+        }
+      }
+      
+      // If all ML services fail, return a low-confidence result instead of rule-based
+      return PhishingDetection(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        messageId: message.id,
+        confidence: 0.0,
+        type: PhishingType.content,
+        indicators: ['ML services unavailable'],
+        reason: 'All ML-based detection services failed',
+        detectedAt: DateTime.now(),
+      );
+      
+    } catch (e) {
+      print('❌ Error in ML-only analysis: $e');
+      return PhishingDetection(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        messageId: message.id,
+        confidence: 0.0,
+        type: PhishingType.content,
+        indicators: ['Analysis error'],
+        reason: 'ML analysis failed: $e',
+        detectedAt: DateTime.now(),
+      );
+    }
   }
 }

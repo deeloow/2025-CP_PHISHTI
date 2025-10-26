@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/services/sms_integration_service.dart';
 import '../../models/sms_message.dart';
-import '../widgets/sms_message_tile.dart';
 
 class SmsConversationScreen extends StatefulWidget {
   final SmsThread thread;
@@ -16,7 +15,6 @@ class SmsConversationScreen extends StatefulWidget {
 }
 
 class _SmsConversationScreenState extends State<SmsConversationScreen> {
-  final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   
   List<SmsMessage> _messages = [];
@@ -30,7 +28,6 @@ class _SmsConversationScreenState extends State<SmsConversationScreen> {
 
   @override
   void dispose() {
-    _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -61,30 +58,6 @@ class _SmsConversationScreenState extends State<SmsConversationScreen> {
     }
   }
 
-  Future<void> _sendMessage() async {
-    if (_messageController.text.trim().isEmpty) {
-      return;
-    }
-
-    final message = _messageController.text.trim();
-    _messageController.clear();
-
-    try {
-      final success = await SmsIntegrationService.instance.sendSms(
-        widget.thread.phoneNumber,
-        message,
-      );
-
-      if (success) {
-        // Reload messages to show the new one
-        await _loadMessages();
-      } else {
-        _showSnackBar('Failed to send message', Colors.red);
-      }
-    } catch (e) {
-      _showSnackBar('Error sending message: $e', Colors.red);
-    }
-  }
 
   void _showSnackBar(String message, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -132,13 +105,13 @@ class _SmsConversationScreenState extends State<SmsConversationScreen> {
             ),
           PopupMenuButton(
             itemBuilder: (context) => [
-              PopupMenuItem(
+              const PopupMenuItem(
                 value: 'mark_read',
-                child: const Text('Mark as Read'),
+                child: Text('Mark as Read'),
               ),
-              PopupMenuItem(
+              const PopupMenuItem(
                 value: 'delete',
-                child: const Text('Delete Conversation'),
+                child: Text('Delete Conversation'),
               ),
             ],
             onSelected: (value) {
@@ -162,10 +135,10 @@ class _SmsConversationScreenState extends State<SmsConversationScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               color: Colors.red.withOpacity(0.1),
-              child: Row(
+              child: const Row(
                 children: [
-                  const Icon(Icons.warning, color: Colors.red),
-                  const SizedBox(width: 8),
+                  Icon(Icons.warning, color: Colors.red),
+                  SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'This conversation contains phishing messages. Be cautious!',
@@ -202,46 +175,6 @@ class _SmsConversationScreenState extends State<SmsConversationScreen> {
                         },
                       ),
           ),
-          
-          // Message Input
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              border: Border(
-                top: BorderSide(
-                  color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
-                ),
-              ),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _messageController,
-                    decoration: InputDecoration(
-                      hintText: 'Type a message...',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                    ),
-                    maxLines: null,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => _sendMessage(),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                FloatingActionButton.small(
-                  onPressed: _sendMessage,
-                  child: const Icon(Icons.send),
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );
@@ -251,11 +184,11 @@ class _SmsConversationScreenState extends State<SmsConversationScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Row(
+        title: const Row(
           children: [
             Icon(Icons.warning, color: Colors.red),
-            const SizedBox(width: 8),
-            const Text('Phishing Warning'),
+            SizedBox(width: 8),
+            Text('Phishing Warning'),
           ],
         ),
         content: const Text(
@@ -357,14 +290,14 @@ class _MessageBubble extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (message.isPhishing) ...[
-                    Row(
+                    const Row(
                       children: [
                         Icon(
                           Icons.warning,
                           size: 16,
                           color: Colors.red,
                         ),
-                        const SizedBox(width: 4),
+                        SizedBox(width: 4),
                         Text(
                           'Phishing Detected',
                           style: TextStyle(

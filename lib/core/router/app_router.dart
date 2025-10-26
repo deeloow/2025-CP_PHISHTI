@@ -13,6 +13,7 @@ import '../../screens/settings/settings_screen.dart';
 import '../../screens/splash/splash_screen.dart';
 import '../../screens/url_analysis/url_analysis_screen.dart';
 import '../../screens/analysis/manual_analysis_screen.dart';
+import '../../screens/analysis/shared_sms_analysis_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
@@ -66,6 +67,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           return EmailVerificationScreen(
             email: extra?['email'] ?? '',
             displayName: extra?['displayName'] ?? '',
+            emailSent: extra?['emailSent'] ?? false,
           );
         },
       ),
@@ -110,6 +112,19 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/manual-analysis',
         builder: (context, state) => const ManualAnalysisScreen(),
+      ),
+      
+      // Shared SMS Analysis Route
+      GoRoute(
+        path: '/shared-sms-analysis',
+        builder: (context, state) {
+          final sharedText = state.uri.queryParameters['text'] ?? '';
+          final sender = state.uri.queryParameters['sender'];
+          return SharedSmsAnalysisScreen(
+            sharedText: sharedText,
+            sender: sender,
+          );
+        },
       ),
     ],
   );

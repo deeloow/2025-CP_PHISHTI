@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/services/php_auth_service.dart';
+import '../../core/services/supabase_auth_service.dart';
 import '../../core/services/biometric_service.dart';
 import 'register_screen.dart';
 
@@ -319,7 +319,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       });
       
       try {
-        final result = await PhpAuthService.instance.login(
+        final result = await SupabaseAuthService.instance.signInWithEmailAndPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text,
         );
@@ -350,13 +350,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Reset Password'),
-        content: Column(
+        content: const Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Enter your email address to receive a password reset link.'),
-            const SizedBox(height: 16),
+            Text('Enter your email address to receive a password reset link.'),
+            SizedBox(height: 16),
             TextField(
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Email',
                 prefixIcon: Icon(Icons.email_outlined),
               ),

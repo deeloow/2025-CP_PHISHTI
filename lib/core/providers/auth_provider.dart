@@ -1,23 +1,23 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../services/auth_service.dart';
+import '../services/supabase_auth_service.dart';
 import '../../models/user.dart' as app_user;
 // Import the specific types we need
 import '../../models/user.dart' show UserPreferences, SecuritySettings;
 
 // Auth state provider
-final authStateProvider = StreamProvider<User?>((ref) {
-  return AuthService.instance.authStateChanges;
+final authStateProvider = StreamProvider<AuthState>((ref) {
+  return SupabaseAuthService.instance.authStateChanges;
 });
 
 // Current app user provider
 final currentAppUserProvider = FutureProvider<app_user.AppUser?>((ref) async {
   final authState = ref.watch(authStateProvider);
   return authState.when(
-    data: (user) async {
-      if (user == null) return null;
-      return await AuthService.instance.getCurrentAppUser();
+    data: (authState) async {
+      if (authState.session?.user == null) return null;
+      return await SupabaseAuthService.instance.getCurrentAppUser();
     },
     loading: () => null,
     error: (_, __) => null,
@@ -25,8 +25,8 @@ final currentAppUserProvider = FutureProvider<app_user.AppUser?>((ref) async {
 });
 
 // Auth service provider
-final authServiceProvider = Provider<AuthService>((ref) {
-  return AuthService.instance;
+final authServiceProvider = Provider<SupabaseAuthService>((ref) {
+  return SupabaseAuthService.instance;
 });
 
 // Login provider
@@ -80,7 +80,7 @@ class LoginState {
 }
 
 class LoginNotifier extends StateNotifier<LoginState> {
-  final AuthService _authService;
+  final SupabaseAuthService _authService;
   
   LoginNotifier(this._authService) : super(const LoginState());
   
@@ -136,7 +136,7 @@ class RegisterState {
 }
 
 class RegisterNotifier extends StateNotifier<RegisterState> {
-  final AuthService _authService;
+  final SupabaseAuthService _authService;
   
   RegisterNotifier(this._authService) : super(const RegisterState());
   
@@ -194,7 +194,7 @@ class GoogleSignInState {
 }
 
 class GoogleSignInNotifier extends StateNotifier<GoogleSignInState> {
-  final AuthService _authService;
+  final SupabaseAuthService _authService;
   
   GoogleSignInNotifier(this._authService) : super(const GoogleSignInState());
   
@@ -220,7 +220,7 @@ class GoogleSignInNotifier extends StateNotifier<GoogleSignInState> {
 
 // User preferences notifier
 class UserPreferencesNotifier extends StateNotifier<UserPreferences?> {
-  final AuthService _authService;
+  final SupabaseAuthService _authService;
   
   UserPreferencesNotifier(this._authService) : super(null);
   
@@ -237,7 +237,7 @@ class UserPreferencesNotifier extends StateNotifier<UserPreferences?> {
 
 // Security settings notifier
 class SecuritySettingsNotifier extends StateNotifier<SecuritySettings?> {
-  final AuthService _authService;
+  final SupabaseAuthService _authService;
   
   SecuritySettingsNotifier(this._authService) : super(null);
   

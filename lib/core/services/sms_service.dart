@@ -6,7 +6,6 @@ import '../../models/sms_message.dart';
 import '../../models/phishing_detection.dart';
 import 'ml_service.dart';
 import 'database_service.dart';
-import 'notification_service.dart';
 
 class SmsService {
   static final SmsService _instance = SmsService._internal();
@@ -15,9 +14,6 @@ class SmsService {
   SmsService._internal();
   
   // SMS integration will be implemented with proper permissions
-  
-  // Placeholder for SMS query functionality
-  final _SmsQueryPlaceholder _smsQuery = _SmsQueryPlaceholder();
   final StreamController<SmsMessage> _smsController = StreamController<SmsMessage>.broadcast();
   final StreamController<PhishingDetection> _phishingController = StreamController<PhishingDetection>.broadcast();
   
@@ -25,11 +21,9 @@ class SmsService {
   Stream<PhishingDetection> get phishingStream => _phishingController.stream;
   
   bool _isListening = false;
-  bool _isDefaultSmsApp = false;
   
   Future<void> initialize() async {
     await _checkPermissions();
-    await _checkDefaultSmsApp();
     await _startListening();
   }
   
@@ -40,25 +34,6 @@ class SmsService {
     }
   }
   
-  Future<void> _checkDefaultSmsApp() async {
-    try {
-      _isDefaultSmsApp = await _smsQuery.isDefaultSmsApp;
-    } catch (e) {
-      print('Error checking default SMS app status: $e');
-      _isDefaultSmsApp = false;
-    }
-  }
-  
-  Future<bool> requestDefaultSmsApp() async {
-    try {
-      final result = await _smsQuery.setAsDefaultSmsApp;
-      _isDefaultSmsApp = result;
-      return result;
-    } catch (e) {
-      print('Error setting as default SMS app: $e');
-      return false;
-    }
-  }
   
   Future<void> _startListening() async {
     if (_isListening) return;
@@ -73,6 +48,8 @@ class SmsService {
     }
   }
   
+  // TODO: Remove this method as it's not used
+  /*
   Future<void> _handleIncomingSms(SmsMessage sms) async {
     try {
       // Convert to our SmsMessage model
@@ -150,22 +127,27 @@ class SmsService {
       }
       
       // Analyze with ML
-      final detection = await MLService.instance.analyzeSms(message);
+      final detection = await MLService.instance.analyzeSmsMLOnly(message);
       
       if (detection.confidence > 0.5) {
-        // Mark as phishing
+        // Check if auto-archive is enabled (default: true)
+        final autoArchiveEnabled = await _getAutoArchiveSetting();
+        
+        // Mark as phishing and AUTO-ARCHIVE if enabled
         final phishingMessage = message.copyWith(
           isPhishing: true,
           phishingScore: detection.confidence,
           reason: detection.reason,
           extractedUrls: urls,
+          isArchived: autoArchiveEnabled,  // AUTO-ARCHIVE if enabled
+          archivedAt: autoArchiveEnabled ? DateTime.now() : null,  // Set archive timestamp if enabled
         );
         
         // Generate signature for cloud sync
         final signature = await MLService.instance.generateSignature(phishingMessage);
         final messageWithSignature = phishingMessage.copyWith(signature: signature);
         
-        // Store in database
+        // Store in database (already archived)
         await DatabaseService.instance.insertSmsMessage(messageWithSignature);
         await DatabaseService.instance.insertPhishingDetection(detection);
         
@@ -202,17 +184,20 @@ class SmsService {
         );
         await DatabaseService.instance.insertPhishingSignature(phishingSignature);
         
-        // Archive the message
-        await _archivePhishingMessage(messageWithSignature);
-        
         // Send notification
+        final notificationMessage = autoArchiveEnabled 
+          ? 'Phishing message detected and auto-archived: ${detection.reason}'
+          : 'Phishing message detected: ${detection.reason}';
+        
         await NotificationService.instance.showPhishingDetectedNotification(
           sender: message.sender,
-          reason: detection.reason,
+          reason: notificationMessage,
         );
         
         // Emit to streams
         _phishingController.add(detection);
+        
+        print('🚨 Phishing message ${autoArchiveEnabled ? 'auto-archived' : 'detected'}: ${message.sender} - ${detection.reason}');
       } else {
         // Safe message, add to inbox
         final safeMessage = message.copyWith(extractedUrls: urls);
@@ -223,17 +208,10 @@ class SmsService {
       print('Error handling incoming SMS: $e');
     }
   }
+  */
   
   // Remove the status change handler as telephony package handles this differently
   
-  Future<void> _archivePhishingMessage(SmsMessage message) async {
-    final archivedMessage = message.copyWith(
-      isArchived: true,
-      archivedAt: DateTime.now(),
-    );
-    
-    await DatabaseService.instance.updateSmsMessage(archivedMessage);
-  }
   
   Future<List<SmsMessage>> getInboxMessages({int? limit, int? offset}) async {
     return await DatabaseService.instance.getSmsMessages(
@@ -365,17 +343,22 @@ class SmsService {
     return await DatabaseService.instance.getStatistics();
   }
   
-  Future<void> sendSms(String phoneNumber, String message) async {
-    try {
-      await _smsQuery.sendSMS(phoneNumber, message);
-    } catch (e) {
-      print('Error sending SMS: $e');
-      throw Exception('Failed to send SMS: $e');
-    }
-  }
   
   Future<void> deleteMessage(String messageId) async {
     await DatabaseService.instance.deleteSmsMessage(messageId);
+  }
+  
+  /// Get auto-archive setting from user preferences
+  Future<bool> _getAutoArchiveSetting() async {
+    try {
+      // Try to get from user preferences (authenticated users)
+      // For now, default to true (auto-archive enabled)
+      // This can be enhanced to read from actual user settings
+      return true; // Default: auto-archive enabled
+    } catch (e) {
+      print('Error getting auto-archive setting: $e');
+      return true; // Default: auto-archive enabled
+    }
   }
   
   /// Manually analyze a message for phishing detection
@@ -390,14 +373,19 @@ class SmsService {
       );
       
       // Analyze with ML
-      final detection = await MLService.instance.analyzeSms(message);
+      final detection = await MLService.instance.analyzeSmsMLOnly(message);
       
       // Store in database if phishing detected
       if (detection.confidence > 0.5) {
+        // Check if auto-archive is enabled
+        final autoArchiveEnabled = await _getAutoArchiveSetting();
+        
         final phishingMessage = message.copyWith(
           isPhishing: true,
           phishingScore: detection.confidence,
           reason: detection.reason,
+          isArchived: autoArchiveEnabled,  // AUTO-ARCHIVE if enabled
+          archivedAt: autoArchiveEnabled ? DateTime.now() : null,  // Set archive timestamp if enabled
         );
         
         await DatabaseService.instance.insertSmsMessage(phishingMessage);
@@ -411,6 +399,8 @@ class SmsService {
             autoBlocked: true,
           );
         }
+        
+        print('🚨 Manual analysis: Phishing message ${autoArchiveEnabled ? 'auto-archived' : 'detected'}: ${message.sender} - ${detection.reason}');
       } else {
         // Store as safe message
         await DatabaseService.instance.insertSmsMessage(message);
@@ -433,12 +423,3 @@ class SmsService {
   }
 }
 
-// Placeholder class for SMS query functionality (since telephony is disabled)
-class _SmsQueryPlaceholder {
-  Future<bool> get isDefaultSmsApp async => false;
-  Future<bool> get setAsDefaultSmsApp async => false;
-  
-  Future<void> sendSMS(String address, String message) async {
-    print('SMS send placeholder: to=$address, message=$message');
-  }
-}

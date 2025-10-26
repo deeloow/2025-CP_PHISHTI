@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/services/php_auth_service.dart';
+import '../../core/services/supabase_auth_service.dart';
 
 class EmailVerificationScreen extends ConsumerStatefulWidget {
   final String email;
   final String displayName;
-  
+  final bool emailSent;
+
   const EmailVerificationScreen({
     super.key,
     required this.email,
     required this.displayName,
+    required this.emailSent,
   });
 
   @override
@@ -20,23 +21,9 @@ class EmailVerificationScreen extends ConsumerStatefulWidget {
 }
 
 class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScreen> {
-  final List<TextEditingController> _controllers = List.generate(6, (index) => TextEditingController());
-  final List<FocusNode> _focusNodes = List.generate(6, (index) => FocusNode());
-  bool _isLoading = false;
   bool _isResending = false;
   String? _errorMessage;
   String? _successMessage;
-
-  @override
-  void dispose() {
-    for (var controller in _controllers) {
-      controller.dispose();
-    }
-    for (var focusNode in _focusNodes) {
-      focusNode.dispose();
-    }
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,7 +35,7 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/dashboard'),
+          onPressed: () => context.go('/auth/register'),
         ),
       ),
       body: SafeArea(
@@ -62,49 +49,36 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
               // Email Icon
               Center(
                 child: Container(
-                  width: 80,
-                  height: 80,
+                  width: 120,
+                  height: 120,
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [
-                        Color(0xFF00FF88),
-                        Color(0xFF00D4FF),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF00FF88).withOpacity(0.3),
-                        blurRadius: 15,
-                        spreadRadius: 2,
-                      ),
-                    ],
+                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(60),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.email_outlined,
-                    size: 40,
-                    color: Colors.white,
+                    size: 60,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
               ),
               
               const SizedBox(height: 32),
               
+              // Title
               Text(
                 'Check Your Email',
-                style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.onSurface,
                 ),
                 textAlign: TextAlign.center,
               ),
               
               const SizedBox(height: 16),
               
+              // Description
               Text(
-                'We\'ve sent a 6-digit verification code to',
+                'We\'ve sent a verification link to:',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                 ),
@@ -113,108 +87,58 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
               
               const SizedBox(height: 8),
               
-              Text(
-                widget.email,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.primary,
+              // Email
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                  ),
                 ),
-                textAlign: TextAlign.center,
-              ),
-              
-              const SizedBox(height: 48),
-              
-              // Verification Code Input
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: List.generate(6, (index) {
-                  return SizedBox(
-                    width: 45,
-                    height: 55,
-                    child: TextFormField(
-                      controller: _controllers[index],
-                      focusNode: _focusNodes[index],
-                      textAlign: TextAlign.center,
-                      keyboardType: TextInputType.number,
-                      maxLength: 1,
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                      decoration: InputDecoration(
-                        counterText: '',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: Theme.of(context).colorScheme.outline,
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: Theme.of(context).colorScheme.primary,
-                            width: 2,
-                          ),
-                        ),
-                        filled: true,
-                        fillColor: Theme.of(context).colorScheme.surface,
-                      ),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                      ],
-                      onChanged: (value) {
-                        if (value.isNotEmpty) {
-                          if (index < 5) {
-                            _focusNodes[index + 1].requestFocus();
-                          } else {
-                            _focusNodes[index].unfocus();
-                            _verifyCode();
-                          }
-                        } else if (value.isEmpty && index > 0) {
-                          _focusNodes[index - 1].requestFocus();
-                        }
-                      },
-                    ),
-                  );
-                }),
-              ),
-              
-              const SizedBox(height: 32),
-              
-              // Verify Button
-              ElevatedButton(
-                onPressed: _isLoading ? null : _verifyCode,
-                child: _isLoading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
-                        ),
-                      )
-                    : const Text('Verify Email'),
+                child: Text(
+                  widget.email,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
               ),
               
               const SizedBox(height: 24),
               
-              // Resend Code Button
-              TextButton(
-                onPressed: _isResending ? null : _resendCode,
-                child: _isResending
+              // Instructions
+              Text(
+                'Please check your email and click the verification link to activate your account.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              
+              const SizedBox(height: 32),
+              
+              // Resend Button
+              ElevatedButton.icon(
+                onPressed: _isResending ? null : _resendVerification,
+                icon: _isResending
                     ? const SizedBox(
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Resend Code'),
+                    : const Icon(Icons.refresh),
+                label: Text(_isResending ? 'Resending...' : 'Resend Verification Email'),
               ),
               
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
               
-              // Back to Register
-              TextButton(
-                onPressed: () => context.go('/auth/register'),
-                child: const Text('Back to Registration'),
+              // Back to Login Button
+              OutlinedButton(
+                onPressed: () => context.go('/auth/login'),
+                child: const Text('Back to Sign In'),
               ),
               
               const SizedBox(height: 24),
@@ -222,28 +146,20 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
               // Error Message
               if (_errorMessage != null)
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.error.withOpacity(0.1),
+                    color: Colors.red.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: Theme.of(context).colorScheme.error.withOpacity(0.3),
-                    ),
+                    border: Border.all(color: Colors.red.withOpacity(0.3)),
                   ),
                   child: Row(
                     children: [
-                      Icon(
-                        Icons.error_outline,
-                        color: Theme.of(context).colorScheme.error,
-                        size: 20,
-                      ),
+                      const Icon(Icons.error_outline, color: Colors.red),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           _errorMessage!,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.error,
-                          ),
+                          style: const TextStyle(color: Colors.red),
                         ),
                       ),
                     ],
@@ -253,33 +169,36 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
               // Success Message
               if (_successMessage != null)
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: Colors.green.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: Colors.green.withOpacity(0.3),
-                    ),
+                    border: Border.all(color: Colors.green.withOpacity(0.3)),
                   ),
                   child: Row(
                     children: [
-                      Icon(
-                        Icons.check_circle_outline,
-                        color: Colors.green,
-                        size: 20,
-                      ),
+                      const Icon(Icons.check_circle_outline, color: Colors.green),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           _successMessage!,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.green,
-                          ),
+                          style: const TextStyle(color: Colors.green),
                         ),
                       ),
                     ],
                   ),
                 ),
+              
+              const SizedBox(height: 32),
+              
+              // Help Text
+              Text(
+                'Didn\'t receive the email? Check your spam folder or try resending the verification email.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                ),
+                textAlign: TextAlign.center,
+              ),
             ],
           ),
         ),
@@ -287,84 +206,22 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
     );
   }
 
-  void _verifyCode() async {
-    final code = _controllers.map((controller) => controller.text).join();
-    
-    if (code.length != 6) {
-      setState(() {
-        _errorMessage = 'Please enter the complete 6-digit code';
-      });
-      return;
-    }
-    
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-      _successMessage = null;
-    });
-    
-    try {
-      final result = await PhpAuthService.instance.verifyEmail(
-        email: widget.email,
-        code: code,
-      );
-      
-      if (result.isSuccess) {
-        setState(() {
-          _successMessage = result.message ?? 'Email verified successfully!';
-        });
-        
-        // Navigate to dashboard after a short delay
-        await Future.delayed(const Duration(seconds: 1));
-        if (mounted) {
-          context.go('/dashboard');
-        }
-      } else {
-        setState(() {
-          _errorMessage = result.errorMessage ?? 'Verification failed';
-        });
-      }
-    } catch (e) {
-      setState(() {
-        _errorMessage = 'An error occurred: $e';
-      });
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
-
-  void _resendCode() async {
+  Future<void> _resendVerification() async {
     setState(() {
       _isResending = true;
       _errorMessage = null;
       _successMessage = null;
     });
-    
+
     try {
-      final result = await PhpAuthService.instance.resendVerificationCode(
-        email: widget.email,
-      );
+      await SupabaseAuthService.instance.resendEmailConfirmation(widget.email);
       
-      if (result.isSuccess) {
-        setState(() {
-          _successMessage = result.message ?? 'Verification code sent!';
-        });
-        
-        // Clear the input fields
-        for (var controller in _controllers) {
-          controller.clear();
-        }
-        _focusNodes[0].requestFocus();
-      } else {
-        setState(() {
-          _errorMessage = result.errorMessage ?? 'Failed to resend code';
-        });
-      }
+      setState(() {
+        _successMessage = 'Verification email sent! Please check your inbox.';
+      });
     } catch (e) {
       setState(() {
-        _errorMessage = 'An error occurred: $e';
+        _errorMessage = 'Failed to resend verification email: $e';
       });
     } finally {
       setState(() {

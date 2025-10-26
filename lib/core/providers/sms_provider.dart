@@ -165,19 +165,6 @@ class SmsActionsNotifier extends StateNotifier<SmsActionsState> {
     }
   }
   
-  Future<void> sendSms(String phoneNumber, String message) async {
-    state = state.copyWith(isLoading: true, errorMessage: null);
-    
-    try {
-      await _smsService.sendSms(phoneNumber, message);
-      state = state.copyWith(isLoading: false, isSuccess: true);
-    } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: 'Failed to send SMS: $e',
-      );
-    }
-  }
   
   void clearError() {
     state = state.copyWith(errorMessage: null);

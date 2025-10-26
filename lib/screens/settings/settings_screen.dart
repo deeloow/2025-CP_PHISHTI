@@ -3,12 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/providers/auth_provider.dart';
-import '../../core/providers/sms_provider.dart';
 import '../../core/providers/ml_provider.dart';
-import '../../core/services/auth_service.dart';
+import '../../core/services/supabase_auth_service.dart';
 import '../../core/services/biometric_service.dart';
 import '../../models/user.dart';
 import 'online_ml_settings_screen.dart';
+import 'guest_mode_test_screen.dart';
+import 'comprehensive_test_screen.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -25,7 +26,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _encryptionEnabled = true;
   bool _biometricEnabled = false;
   
-  bool get isGuestMode => AuthService.instance.isGuestMode;
+  bool get isGuestMode => SupabaseAuthService.instance.isGuestMode;
 
   @override
   void initState() {
@@ -86,7 +87,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final modelStatus = ref.watch(modelStatusProvider);
 
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.background,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: CustomScrollView(
         slivers: [
           // App Bar
@@ -94,7 +95,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             expandedHeight: 120,
             floating: false,
             pinned: true,
-            backgroundColor: Theme.of(context).colorScheme.background,
+            backgroundColor: Theme.of(context).colorScheme.surface,
             leading: IconButton(
               icon: const Icon(Icons.arrow_back),
               onPressed: () => context.go('/dashboard'),
@@ -104,7 +105,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 'Settings',
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.onBackground,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
               background: Container(
@@ -173,7 +174,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           ),
                         ),
                         const SizedBox(height: 12),
-                        Column(
+                        const Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _FeatureItem(
@@ -350,6 +351,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         context,
                         MaterialPageRoute(
                           builder: (context) => const OnlineMLSettingsScreen(),
+                        ),
+                      ),
+                    ),
+                    _ListTile(
+                      title: 'Guest Mode Test',
+                      subtitle: 'Test online ML services in guest mode',
+                      icon: Icons.science,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const GuestModeTestScreen(),
+                        ),
+                      ),
+                    ),
+                    _ListTile(
+                      title: 'Comprehensive Test',
+                      subtitle: 'Test all app features and functionality',
+                      icon: Icons.verified_user,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ComprehensiveTestScreen(),
                         ),
                       ),
                     ),
@@ -611,7 +634,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       builder: (context) => AlertDialog(
         title: Row(
           children: [
-            Icon(
+            const Icon(
               Icons.error,
               color: Colors.red,
             ),

@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/providers/sms_provider.dart';
 import '../../core/providers/ml_provider.dart';
 import '../../core/providers/auth_provider.dart';
-import '../../core/services/auth_service.dart';
+import '../../core/services/supabase_auth_service.dart';
 import '../widgets/threat_meter_widget.dart';
 import '../widgets/stats_card_widget.dart';
 import '../widgets/recent_detections_widget.dart';
@@ -59,7 +59,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     final authState = ref.watch(authStateProvider);
     
     // Check if user is in guest mode
-    final isGuestMode = AuthService.instance.isGuestMode;
+    final isGuestMode = SupabaseAuthService.instance.isGuestMode;
 
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -298,7 +298,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                       const SizedBox(height: 24),
                       
                       // Recent Detections
-                      RecentDetectionsWidget(),
+                      const RecentDetectionsWidget(),
                       
                       const SizedBox(height: 24),
                       

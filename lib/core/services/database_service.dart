@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
@@ -24,6 +23,7 @@ class DatabaseService implements DatabaseServiceInterface {
   late encrypt.Key _key;
   SharedPreferences? _prefs;
   
+  @override
   Future<void> initialize() async {
     if (kIsWeb) {
       // Web: use SharedPreferences as fallback
@@ -42,8 +42,9 @@ class DatabaseService implements DatabaseServiceInterface {
       
       _database = await openDatabase(
         path,
-        version: 1,
+        version: 3,
         onCreate: _onCreate,
+        onUpgrade: _onUpgrade,
       );
     } catch (e) {
       print('Error initializing database: $e');
@@ -65,6 +66,72 @@ class DatabaseService implements DatabaseServiceInterface {
     return 'phishti_device_key_${DateTime.now().millisecondsSinceEpoch}';
   }
   
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 3) {
+      // Migration from version 1 to 2: Update column names to match model
+      await db.execute('ALTER TABLE sms_messages RENAME TO sms_messages_old');
+      
+      // Create new table with correct column names
+      await db.execute('''
+        CREATE TABLE sms_messages (
+          id TEXT PRIMARY KEY,
+          sender TEXT NOT NULL,
+          body TEXT NOT NULL,
+          timestamp TEXT NOT NULL,
+          isPhishing INTEGER NOT NULL DEFAULT 0,
+          phishingScore REAL NOT NULL DEFAULT 0.0,
+          extractedUrls TEXT,
+          signature TEXT,
+          isArchived INTEGER NOT NULL DEFAULT 0,
+          isWhitelisted INTEGER NOT NULL DEFAULT 0,
+          archivedAt TEXT,
+          reason TEXT,
+          threadId TEXT,
+          isRead INTEGER NOT NULL DEFAULT 0,
+          messageType TEXT NOT NULL DEFAULT 'sms',
+          contactName TEXT,
+          userClassification TEXT,
+          analyzedAt TEXT,
+          userNotes TEXT,
+          needsUserReview INTEGER NOT NULL DEFAULT 0,
+          userTags TEXT,
+          created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+        )
+      ''');
+      
+      // Migrate data from old table
+      await db.execute('''
+        INSERT INTO sms_messages (
+          id, sender, body, timestamp, isPhishing, phishingScore, 
+          extractedUrls, signature, isArchived, isWhitelisted, 
+          archivedAt, reason, created_at
+        )
+        SELECT 
+          id, sender, body, 
+          CASE 
+            WHEN timestamp IS NULL THEN datetime('now')
+            ELSE datetime(timestamp, 'unixepoch')
+          END,
+          COALESCE(isPhishing, 0),
+          COALESCE(phishingScore, 0.0),
+          COALESCE(extractedUrls, '[]'),
+          signature,
+          COALESCE(isArchived, 0),
+          COALESCE(isWhitelisted, 0),
+          CASE 
+            WHEN archivedAt IS NULL THEN NULL
+            ELSE datetime(archivedAt, 'unixepoch')
+          END,
+          reason,
+          COALESCE(created_at, strftime('%s', 'now'))
+        FROM sms_messages_old
+      ''');
+      
+      // Drop old table
+      await db.execute('DROP TABLE sms_messages_old');
+    }
+  }
+  
   Future<void> _onCreate(Database db, int version) async {
     // SMS Messages table
     await db.execute('''
@@ -72,15 +139,24 @@ class DatabaseService implements DatabaseServiceInterface {
         id TEXT PRIMARY KEY,
         sender TEXT NOT NULL,
         body TEXT NOT NULL,
-        timestamp INTEGER NOT NULL,
-        is_phishing INTEGER NOT NULL DEFAULT 0,
-        phishing_score REAL NOT NULL DEFAULT 0.0,
-        extracted_urls TEXT,
+        timestamp TEXT NOT NULL,
+        isPhishing INTEGER NOT NULL DEFAULT 0,
+        phishingScore REAL NOT NULL DEFAULT 0.0,
+        extractedUrls TEXT,
         signature TEXT,
-        is_archived INTEGER NOT NULL DEFAULT 0,
-        is_whitelisted INTEGER NOT NULL DEFAULT 0,
-        archived_at INTEGER,
+        isArchived INTEGER NOT NULL DEFAULT 0,
+        isWhitelisted INTEGER NOT NULL DEFAULT 0,
+        archivedAt TEXT,
         reason TEXT,
+        threadId TEXT,
+        isRead INTEGER NOT NULL DEFAULT 0,
+        messageType TEXT NOT NULL DEFAULT 'sms',
+        contactName TEXT,
+        userClassification TEXT,
+        analyzedAt TEXT,
+        userNotes TEXT,
+        needsUserReview INTEGER NOT NULL DEFAULT 0,
+        userTags TEXT,
         created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
       )
     ''');
@@ -169,14 +245,14 @@ class DatabaseService implements DatabaseServiceInterface {
         sender_hash TEXT NOT NULL,
         first_seen INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
         occurrence_count INTEGER NOT NULL DEFAULT 1,
-        is_phishing INTEGER NOT NULL DEFAULT 0
+        isPhishing INTEGER NOT NULL DEFAULT 0
       )
     ''');
     
     // Create indexes for better performance
     await db.execute('CREATE INDEX idx_sms_timestamp ON sms_messages(timestamp)');
-    await db.execute('CREATE INDEX idx_sms_phishing ON sms_messages(is_phishing)');
-    await db.execute('CREATE INDEX idx_sms_archived ON sms_messages(is_archived)');
+    await db.execute('CREATE INDEX idx_sms_phishing ON sms_messages(isPhishing)');
+    await db.execute('CREATE INDEX idx_sms_archived ON sms_messages(isArchived)');
     await db.execute('CREATE INDEX idx_detections_message ON phishing_detections(message_id)');
     await db.execute('CREATE INDEX idx_signatures_hash ON phishing_signatures(hash)');
     await db.execute('CREATE INDEX idx_blocked_senders ON blocked_senders(sender)');
@@ -187,6 +263,7 @@ class DatabaseService implements DatabaseServiceInterface {
   }
   
   // SMS Messages operations
+  @override
   Future<void> insertSmsMessage(SmsMessage message) async {
     if (kIsWeb) {
       // Web: store in SharedPreferences as JSON
@@ -205,6 +282,7 @@ class DatabaseService implements DatabaseServiceInterface {
     );
   }
   
+  @override
   Future<List<SmsMessage>> getSmsMessages({
     bool? isPhishing,
     bool? isArchived,
@@ -247,12 +325,12 @@ class DatabaseService implements DatabaseServiceInterface {
     List<dynamic> whereArgs = [];
     
     if (isPhishing != null) {
-      whereClause += ' AND is_phishing = ?';
+      whereClause += ' AND isPhishing = ?';
       whereArgs.add(isPhishing ? 1 : 0);
     }
     
     if (isArchived != null) {
-      whereClause += ' AND is_archived = ?';
+      whereClause += ' AND isArchived = ?';
       whereArgs.add(isArchived ? 1 : 0);
     }
     
@@ -268,6 +346,7 @@ class DatabaseService implements DatabaseServiceInterface {
     return results.map((row) => _decryptSmsMessage(SmsMessage.fromJson(row))).toList();
   }
   
+  @override
   Future<SmsMessage?> getSmsMessageById(String id) async {
     if (kIsWeb) {
       final messages = await getSmsMessages();
@@ -290,6 +369,7 @@ class DatabaseService implements DatabaseServiceInterface {
     return _decryptSmsMessage(SmsMessage.fromJson(results.first));
   }
   
+  @override
   Future<void> updateSmsMessage(SmsMessage message) async {
     if (kIsWeb) {
       final messages = await getSmsMessages();
@@ -311,6 +391,7 @@ class DatabaseService implements DatabaseServiceInterface {
     );
   }
   
+  @override
   Future<void> deleteSmsMessage(String id) async {
     if (kIsWeb) {
       final messages = await getSmsMessages();
@@ -329,6 +410,7 @@ class DatabaseService implements DatabaseServiceInterface {
   }
   
   // Phishing Detection operations
+  @override
   Future<void> insertPhishingDetection(PhishingDetection detection) async {
     final db = _database!;
     await db.insert(
@@ -338,6 +420,7 @@ class DatabaseService implements DatabaseServiceInterface {
     );
   }
   
+  @override
   Future<List<PhishingDetection>> getPhishingDetections({
     String? messageId,
     int? limit,
@@ -393,6 +476,7 @@ class DatabaseService implements DatabaseServiceInterface {
   }
   
   // Whitelist operations
+  @override
   Future<void> addToWhitelist(String type, String value) async {
     final db = _database!;
     await db.insert(
@@ -407,11 +491,13 @@ class DatabaseService implements DatabaseServiceInterface {
     );
   }
   
+  @override
   Future<List<Map<String, dynamic>>> getWhitelist() async {
     final db = _database!;
     return await db.query('whitelist', orderBy: 'created_at DESC');
   }
   
+  @override
   Future<bool> isWhitelisted(String type, String value) async {
     final db = _database!;
     final results = await db.query(
@@ -423,6 +509,7 @@ class DatabaseService implements DatabaseServiceInterface {
     return results.isNotEmpty;
   }
   
+  @override
   Future<void> removeFromWhitelist(String id) async {
     final db = _database!;
     await db.delete(
@@ -433,6 +520,7 @@ class DatabaseService implements DatabaseServiceInterface {
   }
   
   // Statistics
+  @override
   Future<Map<String, int>> getStatistics() async {
     if (kIsWeb) {
       final messages = await getSmsMessages();
@@ -450,11 +538,11 @@ class DatabaseService implements DatabaseServiceInterface {
     final db = _database!;
     
     final totalMessages = await db.rawQuery('SELECT COUNT(*) as count FROM sms_messages');
-    final phishingMessages = await db.rawQuery('SELECT COUNT(*) as count FROM sms_messages WHERE is_phishing = 1');
-    final archivedMessages = await db.rawQuery('SELECT COUNT(*) as count FROM sms_messages WHERE is_archived = 1');
+    final phishingMessages = await db.rawQuery('SELECT COUNT(*) as count FROM sms_messages WHERE isPhishing = 1');
+    final archivedMessages = await db.rawQuery('SELECT COUNT(*) as count FROM sms_messages WHERE isArchived = 1');
     final weeklyDetections = await db.rawQuery('''
       SELECT COUNT(*) as count FROM sms_messages 
-      WHERE is_phishing = 1 AND timestamp > strftime('%s', 'now', '-7 days')
+      WHERE isPhishing = 1 AND timestamp > strftime('%s', 'now', '-7 days')
     ''');
     
     return {
@@ -485,11 +573,12 @@ class DatabaseService implements DatabaseServiceInterface {
   }
   
   // Blocked senders operations
+  @override
   Future<void> blockSender(String sender, {String? reason, bool autoBlocked = false}) async {
     if (kIsWeb) {
       final blockedSenders = await getBlockedSenders();
       blockedSenders.add({
-        'id': Uuid().v4(),
+        'id': const Uuid().v4(),
         'sender': sender,
         'reason': reason,
         'auto_blocked': autoBlocked,
@@ -503,7 +592,7 @@ class DatabaseService implements DatabaseServiceInterface {
     await db.insert(
       'blocked_senders',
       {
-        'id': Uuid().v4(),
+        'id': const Uuid().v4(),
         'sender': sender,
         'reason': reason,
         'auto_blocked': autoBlocked ? 1 : 0,
@@ -513,6 +602,7 @@ class DatabaseService implements DatabaseServiceInterface {
     );
   }
   
+  @override
   Future<bool> isSenderBlocked(String sender) async {
     if (kIsWeb) {
       final blockedSenders = await getBlockedSenders();
@@ -529,6 +619,7 @@ class DatabaseService implements DatabaseServiceInterface {
     return result.isNotEmpty;
   }
   
+  @override
   Future<void> unblockSender(String sender) async {
     final db = _database!;
     await db.delete(
@@ -538,6 +629,7 @@ class DatabaseService implements DatabaseServiceInterface {
     );
   }
   
+  @override
   Future<List<Map<String, dynamic>>> getBlockedSenders() async {
     if (kIsWeb) {
       final blockedSendersJson = _prefs!.getString('blocked_senders');
@@ -551,13 +643,14 @@ class DatabaseService implements DatabaseServiceInterface {
   }
   
   // Blocked URLs operations
+  @override
   Future<void> blockUrl(String url, {String? reason, String threatLevel = 'medium', bool autoBlocked = false}) async {
     final db = _database!;
     final domain = _extractDomain(url);
     await db.insert(
       'blocked_urls',
       {
-        'id': Uuid().v4(),
+        'id': const Uuid().v4(),
         'url': url,
         'domain': domain,
         'reason': reason,
@@ -569,6 +662,7 @@ class DatabaseService implements DatabaseServiceInterface {
     );
   }
   
+  @override
   Future<bool> isUrlBlocked(String url) async {
     if (kIsWeb) {
       final blockedUrls = await getBlockedUrls();
@@ -586,6 +680,7 @@ class DatabaseService implements DatabaseServiceInterface {
     return result.isNotEmpty;
   }
   
+  @override
   Future<void> unblockUrl(String url) async {
     final db = _database!;
     await db.delete(
@@ -595,6 +690,7 @@ class DatabaseService implements DatabaseServiceInterface {
     );
   }
   
+  @override
   Future<List<Map<String, dynamic>>> getBlockedUrls() async {
     if (kIsWeb) {
       final blockedUrlsJson = _prefs!.getString('blocked_urls');
@@ -608,6 +704,7 @@ class DatabaseService implements DatabaseServiceInterface {
   }
   
   // Message signature operations for duplicate detection
+  @override
   Future<String> generateMessageSignature(String sender, String body) async {
     final content = '$sender:${body.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim()}';
     final bytes = utf8.encode(content);
@@ -615,6 +712,7 @@ class DatabaseService implements DatabaseServiceInterface {
     return digest.toString();
   }
   
+  @override
   Future<bool> isDuplicateMessage(String sender, String body) async {
     final db = _database!;
     final signature = await generateMessageSignature(sender, body);
@@ -642,18 +740,19 @@ class DatabaseService implements DatabaseServiceInterface {
     await db.insert(
       'message_signatures',
       {
-        'id': Uuid().v4(),
+        'id': const Uuid().v4(),
         'content_hash': signature,
         'sender_hash': senderHash,
         'first_seen': DateTime.now().millisecondsSinceEpoch,
         'occurrence_count': 1,
-        'is_phishing': 0,
+        'isPhishing': 0,
       },
     );
     
     return false;
   }
   
+  @override
   Future<void> markSignatureAsPhishing(String sender, String body) async {
     final db = _database!;
     final signature = await generateMessageSignature(sender, body);
@@ -661,12 +760,13 @@ class DatabaseService implements DatabaseServiceInterface {
     
     await db.update(
       'message_signatures',
-      {'is_phishing': 1},
+      {'isPhishing': 1},
       where: 'content_hash = ? AND sender_hash = ?',
       whereArgs: [signature, senderHash],
     );
   }
   
+  @override
   Future<bool> isKnownPhishingSignature(String sender, String body) async {
     final db = _database!;
     final signature = await generateMessageSignature(sender, body);
@@ -674,7 +774,7 @@ class DatabaseService implements DatabaseServiceInterface {
     
     final result = await db.query(
       'message_signatures',
-      where: 'content_hash = ? AND sender_hash = ? AND is_phishing = 1',
+      where: 'content_hash = ? AND sender_hash = ? AND isPhishing = 1',
       whereArgs: [signature, senderHash],
       limit: 1,
     );
@@ -694,6 +794,7 @@ class DatabaseService implements DatabaseServiceInterface {
     }
   }
 
+  @override
   Future<void> close() async {
     await _database?.close();
   }

@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/services/php_auth_service.dart';
-import 'email_verification_screen.dart';
+import '../../core/services/supabase_auth_service.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -352,7 +351,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     ),
                     child: Row(
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.check_circle_outline,
                           color: Colors.green,
                           size: 20,
@@ -386,7 +385,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       });
       
       try {
-        final result = await PhpAuthService.instance.register(
+        final result = await SupabaseAuthService.instance.signUpWithEmailAndPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text,
           displayName: _nameController.text.trim(),
@@ -394,15 +393,16 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         
         if (result.isSuccess) {
           setState(() {
-            _successMessage = result.message ?? 'Registration successful!';
+            _successMessage = 'Registration successful! Please check your email and click the confirmation link to complete your account setup.';
           });
           
           // Navigate to email verification screen
-          await Future.delayed(const Duration(seconds: 1));
+          await Future.delayed(const Duration(seconds: 2));
           if (mounted) {
             context.push('/auth/verify', extra: {
               'email': _emailController.text.trim(),
               'displayName': _nameController.text.trim(),
+              'emailSent': true,
             });
           }
         } else {

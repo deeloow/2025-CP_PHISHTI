@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class NotificationService {
@@ -14,7 +13,6 @@ class NotificationService {
   // final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance; // Temporarily disabled
   
   bool _isInitialized = false;
-  StreamSubscription<RemoteMessage>? _messageSubscription;
   
   Future<void> initialize() async {
     if (_isInitialized) return;
@@ -66,7 +64,7 @@ class NotificationService {
     
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
       // Listen for FCM messages
-      _messageSubscription = FirebaseMessaging.onMessage.listen(_handleFirebaseMessage);
+      // _messageSubscription = FirebaseMessaging.onMessage.listen(_handleFirebaseMessage); // Removed Firebase
       
       // Handle background messages
       FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
@@ -94,9 +92,9 @@ class NotificationService {
     print('Notification tapped: ${response.payload}');
   }
   
-  Future<void> _handleFirebaseMessage(RemoteMessage message) async {
+  Future<void> _handleFirebaseMessage(Map<String, dynamic> message) async {
     // Handle FCM message
-    print('Received FCM message: ${message.notification?.title}');
+    print('Received message: ${message['notification']?['title']}');
   }
   
   Future<void> showPhishingDetectedNotification({
@@ -280,13 +278,13 @@ class NotificationService {
   }
   
   Future<void> dispose() async {
-    await _messageSubscription?.cancel();
+    // await _messageSubscription?.cancel(); // Removed Firebase messaging
   }
 }
 
 // Background message handler
 /*
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+Future<void> _firebaseMessagingBackgroundHandler(Map<String, dynamic> message) async {
   print('Handling background message: ${message.messageId}');
 }
 */
