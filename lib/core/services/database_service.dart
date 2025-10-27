@@ -369,6 +369,37 @@ class DatabaseService implements DatabaseServiceInterface {
     return _decryptSmsMessage(SmsMessage.fromJson(results.first));
   }
   
+  /// Get recent analyzed messages (both phishing and safe)
+  Future<List<SmsMessage>> getRecentAnalyzedMessages({int limit = 10}) async {
+    if (kIsWeb) {
+      // Web: get from SharedPreferences
+      final messagesJson = _prefs!.getString('sms_messages');
+      if (messagesJson == null) return [];
+      
+      final List<dynamic> messagesList = jsonDecode(messagesJson);
+      List<SmsMessage> messages = messagesList.map((json) => SmsMessage.fromJson(json)).toList();
+      
+      // Filter messages that have been analyzed (have phishing score > 0 or are explicitly marked as safe)
+      messages = messages.where((m) => m.phishingScore > 0 || m.userClassification != null).toList();
+      
+      // Sort by timestamp (most recent first)
+      messages.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      
+      // Apply limit
+      return messages.take(limit).toList();
+    }
+    
+    final db = _database!;
+    final results = await db.query(
+      'sms_messages',
+      where: 'phishingScore > 0 OR userClassification IS NOT NULL',
+      orderBy: 'timestamp DESC',
+      limit: limit,
+    );
+    
+    return results.map((json) => _decryptSmsMessage(SmsMessage.fromJson(json))).toList();
+  }
+  
   @override
   Future<void> updateSmsMessage(SmsMessage message) async {
     if (kIsWeb) {

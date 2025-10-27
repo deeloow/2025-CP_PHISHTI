@@ -21,6 +21,7 @@ import 'core/services/quick_test.dart';
 import 'core/services/biometric_service.dart';
 import 'core/services/sms_integration_service.dart';
 import 'core/services/sms_share_service.dart';
+import 'screens/widgets/connectivity_warning_widget.dart';
 import 'supabase_options.dart';
 
 void main() async {
@@ -169,7 +170,12 @@ class PhishtiDetectorApp extends ConsumerWidget {
           builder: (context, child) {
             // Platform-specific optimizations (skip on web)
             if (kIsWeb) {
-              return child!;
+              return Column(
+                children: [
+                  const AnimatedConnectivityWarning(),
+                  Expanded(child: child!),
+                ],
+              );
             }
             
             // Android-specific optimizations
@@ -181,7 +187,12 @@ class PhishtiDetectorApp extends ConsumerWidget {
                       MediaQuery.of(context).textScaler.scale(1.0).clamp(0.8, 1.2),
                     ),
                   ),
-                  child: child!,
+                  child: Column(
+                    children: [
+                      const AnimatedConnectivityWarning(),
+                      Expanded(child: child!),
+                    ],
+                  ),
                 ),
               ),
             );

@@ -46,11 +46,10 @@ class _InboxScreenState extends ConsumerState<InboxScreen> with TickerProviderSt
     try {
       // Check SMS permissions
       final hasPermissions = await SmsIntegrationService.instance.hasSmsPermissions();
-      final isDefault = await SmsIntegrationService.instance.isDefaultSmsApp();
       
       setState(() {
         _hasSmsPermissions = hasPermissions;
-        _isDefaultSmsApp = isDefault;
+        _isDefaultSmsApp = false; // Default to false for now
         _isLoading = false;
       });
 
@@ -108,18 +107,13 @@ class _InboxScreenState extends ConsumerState<InboxScreen> with TickerProviderSt
 
   Future<void> _requestSetAsDefaultSmsApp() async {
     try {
-      final success = await SmsIntegrationService.instance.requestSetAsDefaultSmsApp();
-      if (success) {
-        setState(() {
-          _isDefaultSmsApp = true;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please set PhishTi as your default SMS app in device settings'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
+      // For now, just show a message to user
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please set PhishTi as your default SMS app in device settings'),
+          backgroundColor: Colors.orange,
+        ),
+      );
     } catch (e) {
       print('Error requesting to set as default SMS app: $e');
     }

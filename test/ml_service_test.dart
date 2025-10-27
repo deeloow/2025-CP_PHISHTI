@@ -75,13 +75,13 @@ void main() {
         // Banking phishing
         'Your account has been suspended. Verify now: http://fake-bank.com',
         // Prize scam
-        'Congratulations! You won $1000. Claim here: http://scam-lottery.com',
+        'Congratulations! You won \$1000. Claim here: http://scam-lottery.com',
         // Tech support scam
         'Your computer is infected. Download fix: http://fake-antivirus.com',
         // Urgent language
         'IMMEDIATE ACTION REQUIRED: Update your payment information',
         // Financial scam
-        'Tax refund available. Claim $500 now: http://fake-irs.com',
+        'Tax refund available. Claim \$500 now: http://fake-irs.com',
       ];
       
       for (final messageBody in testCases) {
@@ -191,7 +191,7 @@ void main() {
       final testCases = [
         {'message': 'URGENT: Your account suspended. Verify: http://fake.com', 'isPhishing': true},
         {'message': 'Hi, how are you today?', 'isPhishing': false},
-        {'message': 'You won $1000! Claim now: http://scam.com', 'isPhishing': true},
+        {'message': 'You won \$1000! Claim now: http://scam.com', 'isPhishing': true},
         {'message': 'Thanks for the meeting yesterday.', 'isPhishing': false},
         {'message': 'Your credit card blocked. Verify: http://fake-bank.com', 'isPhishing': true},
         {'message': 'Your appointment confirmed for tomorrow.', 'isPhishing': false},

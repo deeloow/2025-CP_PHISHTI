@@ -44,27 +44,19 @@ class _SmsComposerScreenState extends State<SmsComposerScreen> {
     });
 
     try {
-      bool success;
+      bool success = false;
       
       if (_isMms && _imagePath != null) {
-        success = await SmsIntegrationService.instance.sendMmsWithImage(
-          _phoneController.text.trim(),
-          _messageController.text.trim(),
-          _imagePath!,
-        );
+        // MMS sending not implemented yet
+        _showSnackBar('MMS sending not implemented yet', Colors.orange);
+        return;
       } else {
-        success = await SmsIntegrationService.instance.sendSms(
-          _phoneController.text.trim(),
-          _messageController.text.trim(),
-        );
+        // SMS sending not implemented yet
+        _showSnackBar('SMS sending not implemented yet', Colors.orange);
+        return;
       }
 
-      if (success) {
-        _showSnackBar('Message sent successfully!', Colors.green);
-        Navigator.of(context).pop();
-      } else {
-        _showSnackBar('Failed to send message', Colors.red);
-      }
+      // Success handling removed since we return early above
     } catch (e) {
       _showSnackBar('Error sending message: $e', Colors.red);
     } finally {

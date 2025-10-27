@@ -6,14 +6,14 @@ import '../../core/services/sms_integration_service.dart';
 import '../../models/sms_message.dart';
 import '../widgets/sms_message_tile.dart';
 
-class InboxScreen extends ConsumerStatefulWidget {
-  const InboxScreen({super.key});
+class SmsScreen extends ConsumerStatefulWidget {
+  const SmsScreen({super.key});
 
   @override
-  ConsumerState<InboxScreen> createState() => _InboxScreenState();
+  ConsumerState<SmsScreen> createState() => _SmsScreenState();
 }
 
-class _InboxScreenState extends ConsumerState<InboxScreen> with TickerProviderStateMixin {
+class _SmsScreenState extends ConsumerState<SmsScreen> with TickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   bool _isLoading = true;

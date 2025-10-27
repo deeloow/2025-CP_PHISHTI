@@ -1,8 +1,6 @@
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import '../../models/sms_message.dart';
-import '../../models/phishing_detection.dart';
 import 'rust_ml_service.dart';
 
 /// Test service for Rust ML integration
@@ -136,7 +134,7 @@ class RustMLTestService {
         'expected_phishing': true,
       },
       {
-        'message': 'Congratulations! You\'ve won $1000. Claim now by clicking: http://scam-lottery.com',
+        'message': 'Congratulations! You\'ve won \$1000. Claim now by clicking: http://scam-lottery.com',
         'expected_phishing': true,
       },
       {
@@ -152,7 +150,7 @@ class RustMLTestService {
         'expected_phishing': true,
       },
       {
-        'message': 'Tax refund available. Claim $500: http://fake-irs.com/refund',
+        'message': 'Tax refund available. Claim \$500: http://fake-irs.com/refund',
         'expected_phishing': true,
       },
       {

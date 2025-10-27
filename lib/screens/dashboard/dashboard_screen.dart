@@ -9,6 +9,7 @@ import '../../core/services/supabase_auth_service.dart';
 import '../widgets/threat_meter_widget.dart';
 import '../widgets/stats_card_widget.dart';
 import '../widgets/recent_detections_widget.dart';
+import '../widgets/critical_connectivity_warning.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -98,6 +99,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                     ),
                   ),
                   actions: [
+                    // Connectivity status indicator
+                    const Padding(
+                      padding: EdgeInsets.only(right: 8),
+                      child: ConnectivityStatusIndicator(),
+                    ),
                     if (!isGuestMode) ...[
                       IconButton(
                         icon: const Icon(Icons.notifications_outlined),

@@ -2,16 +2,49 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/providers/sms_provider.dart';
+import '../../core/services/database_service.dart';
 import '../../models/sms_message.dart';
 
-class RecentDetectionsWidget extends ConsumerWidget {
+class RecentDetectionsWidget extends ConsumerStatefulWidget {
   const RecentDetectionsWidget({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final archivedMessages = ref.watch(archivedMessagesProvider);
+  ConsumerState<RecentDetectionsWidget> createState() => _RecentDetectionsWidgetState();
+}
 
+class _RecentDetectionsWidgetState extends ConsumerState<RecentDetectionsWidget> {
+  List<SmsMessage>? _cachedMessages;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMessages();
+  }
+
+  Future<void> _loadMessages() async {
+    if (_isLoading) return;
+    
+    setState(() {
+      _isLoading = true;
+    });
+    
+    try {
+      final messages = await DatabaseService.instance.getRecentAnalyzedMessages(limit: 5);
+      setState(() {
+        _cachedMessages = messages;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading recent analyzed messages: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -40,7 +73,7 @@ class RecentDetectionsWidget extends ConsumerWidget {
               ),
               const Spacer(),
               TextButton(
-                onPressed: () => context.go('/archive'),
+                onPressed: () => context.go('/sms'),
                 child: const Text('View All'),
               ),
             ],
@@ -48,24 +81,19 @@ class RecentDetectionsWidget extends ConsumerWidget {
           
           const SizedBox(height: 16),
           
-          archivedMessages.when(
-            data: (messages) {
-              if (messages.isEmpty) {
-                return _buildEmptyState(context);
-              }
-              
-              return Column(
-                children: messages.take(3).map((message) {
-                  return _DetectionItem(
-                    message: message,
-                    onTap: () => _showMessageDetails(context, message),
-                  );
-                }).toList(),
-              );
-            },
-            loading: () => _buildLoadingState(context),
-            error: (error, stack) => _buildErrorState(context, error.toString()),
-          ),
+          if (_isLoading)
+            _buildLoadingState(context)
+          else if (_cachedMessages == null || _cachedMessages!.isEmpty)
+            _buildEmptyState(context)
+          else
+            Column(
+              children: _cachedMessages!.take(3).map((message) {
+                return _DetectionItem(
+                  message: message,
+                  onTap: () => _showMessageDetails(context, message),
+                );
+              }).toList(),
+            ),
         ],
       ),
     );
@@ -153,36 +181,6 @@ class RecentDetectionsWidget extends ConsumerWidget {
     );
   }
 
-  Widget _buildErrorState(BuildContext context, String error) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        children: [
-          Icon(
-            Icons.error_outline,
-            size: 48,
-            color: Theme.of(context).colorScheme.error.withOpacity(0.5),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Error Loading Detections',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            error,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.error,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
   void _showMessageDetails(BuildContext context, SmsMessage message) {
     showDialog(
       context: context,
@@ -258,6 +256,17 @@ class _DetectionItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isPhishing = message.isPhishing;
+    final statusColor = isPhishing ? 
+        (message.phishingScore >= 0.8 ? Colors.red : Colors.orange) : 
+        Colors.green;
+    final statusIcon = isPhishing ? 
+        (message.phishingScore >= 0.8 ? Icons.dangerous : Icons.warning) : 
+        Icons.check_circle;
+    final statusText = isPhishing ? 
+        (message.phishingScore >= 0.8 ? 'Dangerous' : 'Malicious') : 
+        'Safe';
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       child: InkWell(
@@ -266,10 +275,10 @@ class _DetectionItem extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.error.withOpacity(0.05),
+            color: statusColor.withOpacity(0.05),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: Theme.of(context).colorScheme.error.withOpacity(0.2),
+              color: statusColor.withOpacity(0.2),
             ),
           ),
           child: Row(
@@ -278,12 +287,12 @@ class _DetectionItem extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.error.withOpacity(0.1),
+                  color: statusColor.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Icon(
-                  Icons.block,
-                  color: Theme.of(context).colorScheme.error,
+                  statusIcon,
+                  color: statusColor,
                   size: 20,
                 ),
               ),
@@ -292,11 +301,31 @@ class _DetectionItem extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      message.sender,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            message.sender,
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: statusColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            statusText,
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: statusColor,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -310,27 +339,36 @@ class _DetectionItem extends StatelessWidget {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.error.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            '${(message.phishingScore * 100).toStringAsFixed(0)}% Risk',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).colorScheme.error,
-                              fontWeight: FontWeight.w600,
+                        if (message.phishingScore > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: statusColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '${(message.phishingScore * 100).toStringAsFixed(0)}% Risk',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: statusColor,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
+                        if (message.phishingScore > 0) const SizedBox(width: 8),
                         Text(
                           _formatTime(message.timestamp),
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
                           ),
                         ),
+                        if (message.reason != null) ...[
+                          const SizedBox(width: 8),
+                          Icon(
+                            Icons.info_outline,
+                            size: 14,
+                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                          ),
+                        ],
                       ],
                     ),
                   ],

@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../models/sms_message.dart';
 import '../../models/phishing_detection.dart';
-import 'mock_rust_ml_service.dart';
+import 'enhanced_distilbert_service.dart';
 
 /// FFI bindings for Rust ML service
 class RustMLService {
@@ -24,7 +24,7 @@ class RustMLService {
   
   bool _isInitialized = false;
   bool _useFallback = false;
-  final MockRustMLService _mockService = MockRustMLService.instance;
+  final EnhancedDistilBERTService _enhancedService = EnhancedDistilBERTService.instance;
   
   /// Initialize the Rust ML service
   Future<void> initialize() async {
@@ -70,16 +70,18 @@ class RustMLService {
       _isInitialized = true;
       _useFallback = false;
       if (kDebugMode) {
-        print('Rust ML Service initialized successfully');
+        print('✅ Rust DistilBERT ML Service initialized successfully');
+        print('🤖 Real DistilBERT model loaded - ML-based detection enabled');
       }
     } catch (e) {
       if (kDebugMode) {
-        print('Error initializing Rust ML Service: $e');
-        print('Using Mock DistilBERT service for testing');
+        print('❌ Error initializing Rust DistilBERT Service: $e');
+        print('🔄 Falling back to Enhanced DistilBERT service');
+        print('💡 Enhanced DistilBERT provides DistilBERT-like accuracy without Rust build');
       }
-      // Use mock service for testing
+      // Use enhanced service for DistilBERT-like analysis
       _useFallback = true;
-      await _mockService.initialize();
+      await _enhancedService.initialize();
       _isInitialized = true;
     }
   }
@@ -90,9 +92,9 @@ class RustMLService {
       await initialize();
     }
     
-    // If Rust library is not available, use mock service
+    // If Rust library is not available, use enhanced DistilBERT service
     if (_useFallback) {
-      return await _mockService.analyzeSms(message);
+      return await _enhancedService.analyzeSms(message);
     }
     
     try {
@@ -126,8 +128,8 @@ class RustMLService {
         print('Error in Rust ML analysis: $e');
         print('Falling back to Mock DistilBERT service');
       }
-      // Fallback to mock service
-      return await _mockService.analyzeSms(message);
+      // Fallback to enhanced DistilBERT service
+      return await _enhancedService.analyzeSms(message);
     }
   }
   
@@ -184,7 +186,7 @@ class RustMLService {
     }
     
     if (_useFallback) {
-      return _mockService.getDetectorStats();
+      return _enhancedService.getStats();
     }
     
     try {

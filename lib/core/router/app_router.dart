@@ -7,7 +7,7 @@ import '../../screens/auth/login_screen.dart';
 import '../../screens/auth/register_screen.dart';
 import '../../screens/auth/email_verification_screen.dart';
 import '../../screens/dashboard/dashboard_screen.dart';
-import '../../screens/inbox/inbox_screen.dart';
+import '../../screens/inbox/sms_screen.dart';
 import '../../screens/archive/archive_screen.dart';
 import '../../screens/settings/settings_screen.dart';
 import '../../screens/splash/splash_screen.dart';
@@ -22,7 +22,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     initialLocation: '/splash',
     redirect: (context, state) {
       final isLoggedIn = authState.when(
-        data: (user) => user != null,
+        data: (authState) => authState.session?.user != null,
         loading: () => false,
         error: (_, __) => false,
       );
@@ -81,8 +81,8 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const DashboardScreen(),
           ),
           GoRoute(
-            path: '/inbox',
-            builder: (context, state) => const InboxScreen(),
+            path: '/sms',
+            builder: (context, state) => const SmsScreen(),
           ),
           GoRoute(
             path: '/archive',
@@ -150,9 +150,9 @@ class MainShell extends StatelessWidget {
             label: 'Dashboard',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.inbox_outlined),
-            activeIcon: Icon(Icons.inbox),
-            label: 'Inbox',
+            icon: Icon(Icons.sms_outlined),
+            activeIcon: Icon(Icons.sms),
+            label: 'SMS',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.archive_outlined),
@@ -180,7 +180,7 @@ class MainShell extends StatelessWidget {
         context.go('/dashboard');
         break;
       case 1:
-        context.go('/inbox');
+        context.go('/sms');
         break;
       case 2:
         context.go('/archive');
