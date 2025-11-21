@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background Circle -->
+  <circle cx="256" cy="256" r="240" fill="#1a1a2e" stroke="#00ff88" stroke-width="12"/>
+  
+  <!-- Inner Circle -->
+  <circle cx="256" cy="256" r="200" fill="#16213e" stroke="#00ff88" stroke-width="6" opacity="0.3"/>
+  
+  <!-- Shield Base -->
+  <path d="M256 100 L180 140 L180 300 Q180 380 256 420 Q332 380 332 300 L332 140 Z" 
+        fill="#00ff88" opacity="0.9"/>
+  
+  <!-- Shield Inner -->
+  <path d="M256 120 L200 150 L200 300 Q200 360 256 390 Q312 360 312 300 L312 150 Z" 
+        fill="#ffffff" opacity="0.1"/>
+  
+  <!-- Fish Hook -->
+  <path d="M256 220 Q280 220 280 240 Q280 260 260 260 Q240 260 240 240 Q240 220 256 220 Z" 
+        fill="#ff4444" stroke="#ffffff" stroke-width="4"/>
+  
+  <!-- Hook Line -->
+  <line x1="256" y1="220" x2="256" y2="180" stroke="#ff4444" stroke-width="6" stroke-linecap="round"/>
+  
+  <!-- Hook Point -->
+  <circle cx="240" cy="240" r="8" fill="#ff4444"/>
+  
+  <!-- Security Lines -->
+  <line x1="200" y1="170" x2="312" y2="170" stroke="#00ff88" stroke-width="3" opacity="0.6"/>
+  <line x1="200" y1="190" x2="312" y2="190" stroke="#00ff88" stroke-width="3" opacity="0.6"/>
+  <line x1="200" y1="210" x2="312" y2="210" stroke="#00ff88" stroke-width="3" opacity="0.6"/>
+  
+  <!-- Decorative Elements -->
+  <circle cx="150" cy="150" r="4" fill="#00ff88" opacity="0.4"/>
+  <circle cx="362" cy="150" r="4" fill="#00ff88" opacity="0.4"/>
+  <circle cx="150" cy="362" r="4" fill="#00ff88" opacity="0.4"/>
+  <circle cx="362" cy="362" r="4" fill="#00ff88" opacity="0.4"/>
+</svg>

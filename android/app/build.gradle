@@ -1,0 +1,119 @@
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    id "dev.flutter.flutter-gradle-plugin"
+    id "com.google.gms.google-services"
+}
+
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withReader('UTF-8') { reader ->
+        localProperties.load(reader)
+    }
+}
+
+def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
+if (flutterVersionCode == null) {
+    flutterVersionCode = '1'
+}
+
+def flutterVersionName = localProperties.getProperty('flutter.versionName')
+if (flutterVersionName == null) {
+    flutterVersionName = '1.0'
+}
+
+android {
+    namespace "com.example.phishti_detector"
+    compileSdk flutter.compileSdkVersion
+    ndkVersion flutter.ndkVersion
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+        coreLibraryDesugaringEnabled true
+    }
+
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+
+    sourceSets {
+        main.java.srcDirs += 'src/main/kotlin'
+    }
+
+    defaultConfig {
+        applicationId "com.example.phishti_detector"
+        minSdkVersion flutter.minSdkVersion
+        targetSdkVersion flutter.targetSdkVersion
+        versionCode flutterVersionCode.toInteger()
+        versionName flutterVersionName
+        
+        // Rust FFI configuration
+        ndk {
+            abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.debug
+        }
+    }
+}
+
+flutter {
+    source '../..'
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
+    
+    // Rust FFI support (disabled for now)
+    // implementation 'com.rust:rust-ffi:1.0.0'
+}
+
+// Rust build task (disabled for now - will use fallback)
+// task buildRust {
+//     doLast {
+//         exec {
+//             workingDir '../../rust_ml'
+//             commandLine 'cargo', 'build', '--release', '--target', 'aarch64-linux-android'
+//         }
+//         exec {
+//             workingDir '../../rust_ml'
+//             commandLine 'cargo', 'build', '--release', '--target', 'armv7-linux-androideabi'
+//         }
+//         exec {
+//             workingDir '../../rust_ml'
+//             commandLine 'cargo', 'build', '--release', '--target', 'x86_64-linux-android'
+//         }
+//     }
+// }
+
+// Copy Rust libraries to Android (disabled for now)
+// task copyRustLibs {
+//     dependsOn buildRust
+//     doLast {
+//         copy {
+//             from '../../rust_ml/target/aarch64-linux-android/release/librust_ml.so'
+//             into 'src/main/jniLibs/arm64-v8a'
+//         }
+//         copy {
+//             from '../../rust_ml/target/armv7-linux-androideabi/release/librust_ml.so'
+//             into 'src/main/jniLibs/armeabi-v7a'
+//         }
+//         copy {
+//             from '../../rust_ml/target/x86_64-linux-android/release/librust_ml.so'
+//             into 'src/main/jniLibs/x86_64'
+//         }
+//     }
+// }
+
+// Make build depend on Rust library copy (disabled for now)
+// tasks.whenTaskAdded { task ->
+//     if (task.name == 'assembleDebug' || task.name == 'assembleRelease') {
+//         task.dependsOn copyRustLibs
+//     }
+// }

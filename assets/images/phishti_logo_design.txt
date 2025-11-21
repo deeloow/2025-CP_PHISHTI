@@ -1,0 +1,6 @@
+PhishTi Logo Design:
+- Background: Dark green (#1B5E20)
+- Shield: Green (#4CAF50) 
+- Detection element: Red circle with exclamation mark
+- Text: "PhishTi" in white
+- Style: Modern, clean, professional

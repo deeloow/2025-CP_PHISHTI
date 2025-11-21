@@ -1,0 +1,57 @@
+buildscript {
+    ext.kotlin_version = '2.1.0'
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.6.0'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        classpath 'com.google.gms:google-services:4.4.3'
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    
+    // Suppress all warnings globally
+    tasks.withType(JavaCompile) {
+        options.compilerArgs << "-Xlint:-deprecation"
+        options.compilerArgs << "-Xlint:-unchecked"
+        options.compilerArgs << "-Xlint:-rawtypes"
+        options.compilerArgs << "-Xlint:-varargs"
+        options.deprecation = false
+        options.warnings = false
+        options.verbose = false
+    }
+    
+    // Suppress Kotlin warnings globally
+    tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile) {
+        kotlinOptions {
+            freeCompilerArgs += [
+                "-Xsuppress-version-warnings",
+                "-Xno-param-assertions",
+                "-Xno-call-assertions",
+                "-Xno-receiver-assertions"
+            ]
+        }
+    }
+    
+}
+
+rootProject.buildDir = '../build'
+subprojects {
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
+}
+subprojects {
+    project.evaluationDependsOn(':app')
+}
+
+tasks.register("clean", Delete) {
+    delete rootProject.buildDir
+}
+
